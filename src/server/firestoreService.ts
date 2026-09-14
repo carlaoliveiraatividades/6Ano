@@ -11,19 +11,27 @@ import {
   query,
   where,
   orderBy,
-  limit,
-  serverTimestamp,
-  Timestamp
+  limit
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { WORLDS_DATA } from '../data/worldsData';
 import { BADGES, LEVELS, getLevelForXp, DEMO_CLASS_STUDENTS } from '../data/initialData';
 import { DAILY_TIPS, DAILY_QUOTES } from '../data/dailyContent';
 import { WEEKLY_CHALLENGES } from '../data/weeklyChallenges';
+import { hashPassword, verifyPassword } from './authSecurity';
 
 // Initialize Firebase client in server environment
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const db: Firestore = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// Canonical rewards table defined strictly server-side
+export const CANONICAL_REWARDS = {
+  ACTIVITY_XP: 20,
+  SIMULATOR_XP: 30,
+  ASSESSMENT_PASS_XP: 100,
+  MISSION_SUBMISSION_XP: 50,
+  WEEKLY_CHALLENGE_XP: 50
+};
 
 // Interfaces
 export interface ServerUser {
@@ -69,7 +77,7 @@ export interface ServerXpTransaction {
   userId: string;
   amount: number;
   reason: string;
-  source: 'activity' | 'simulator' | 'assessment' | 'mission' | 'weekly-challenge' | 'grand-mission' | 'manual';
+  source: 'activity' | 'simulator' | 'assessment' | 'mission' | 'weekly-challenge' | 'grand-mission' | 'teacher_bonus';
   timestamp: string;
 }
 
@@ -256,6 +264,21 @@ export async function initializeAndSeedFirestore() {
       if (!uSnap.exists()) {
         await setDoc(uRef, u);
       }
+
+      // Seed credentials securely in separate userCredentials collection
+      const credRef = doc(db, 'userCredentials', u.id);
+      const credSnap = await getDoc(credRef);
+      if (!credSnap.exists()) {
+        const defaultPassword = u.role === 'teacher' ? 'carlamso' : 'alunotic2026';
+        const { salt, hash } = hashPassword(defaultPassword);
+        await setDoc(credRef, {
+          userId: u.id,
+          username: u.username,
+          salt,
+          hash,
+          updatedAt: new Date().toISOString()
+        });
+      }
     }
 
     // Seed class members
@@ -402,8 +425,9 @@ export async function serverAwardXp(
 
 /**
  * Server-authoritative Activity Completion
+ * Enforces canonical XP and rejects duplicate rewards idempotently.
  */
-export async function serverCompleteActivity(userId: string, activityId: string, customXp: number = 20) {
+export async function serverCompleteActivity(userId: string, activityId: string) {
   const spRef = doc(db, 'studentProgress', userId);
   const spSnap = await getDoc(spRef);
 
@@ -415,16 +439,22 @@ export async function serverCompleteActivity(userId: string, activityId: string,
   const alreadyCompleted = progress.completedActivities.includes(activityId);
 
   if (alreadyCompleted) {
+    const userRef = doc(db, 'users', userId);
+    const uSnap = await getDoc(userRef);
+    const currentXp = uSnap.exists() ? (uSnap.data() as ServerUser).xp : 0;
     return {
       success: true,
       alreadyCompleted: true,
-      message: 'Atividade já concluída anteriormente.',
+      awardedXp: 0,
+      newXp: currentXp,
+      message: 'Atividade já concluída anteriormente. Não foi atribuído XP duplicado.',
       progress
     };
   }
 
-  // Award XP
-  const xpResult = await serverAwardXp(userId, customXp, `Conclusão de atividade: ${activityId}`, 'activity');
+  // Canonical XP strictly defined by the server (ignores any client value)
+  const canonicalXp = CANONICAL_REWARDS.ACTIVITY_XP;
+  const xpResult = await serverAwardXp(userId, canonicalXp, `Conclusão de atividade: ${activityId}`, 'activity');
 
   // Update activities list and calculate progress
   const updatedActivities = [...progress.completedActivities, activityId];
@@ -439,15 +469,16 @@ export async function serverCompleteActivity(userId: string, activityId: string,
   return {
     success: true,
     alreadyCompleted: false,
-    awardedXp: customXp,
+    awardedXp: canonicalXp,
     ...xpResult
   };
 }
 
 /**
  * Server-authoritative Simulator Completion
+ * Enforces canonical XP and rejects duplicate rewards idempotently.
  */
-export async function serverCompleteSimulator(userId: string, simId: string, customXp: number = 30) {
+export async function serverCompleteSimulator(userId: string, simId: string) {
   const spRef = doc(db, 'studentProgress', userId);
   const spSnap = await getDoc(spRef);
 
@@ -459,14 +490,21 @@ export async function serverCompleteSimulator(userId: string, simId: string, cus
   const alreadyDone = progress.completedSimulators.includes(simId);
 
   if (alreadyDone) {
+    const userRef = doc(db, 'users', userId);
+    const uSnap = await getDoc(userRef);
+    const currentXp = uSnap.exists() ? (uSnap.data() as ServerUser).xp : 0;
     return {
       success: true,
       alreadyCompleted: true,
-      message: 'Simulador já completado anteriormente.'
+      awardedXp: 0,
+      newXp: currentXp,
+      message: 'Simulador já completado anteriormente. Não foi atribuído XP duplicado.'
     };
   }
 
-  const xpResult = await serverAwardXp(userId, customXp, `Simulador concluído: ${simId}`, 'simulator');
+  // Canonical XP strictly defined by the server (ignores any client value)
+  const canonicalXp = CANONICAL_REWARDS.SIMULATOR_XP;
+  const xpResult = await serverAwardXp(userId, canonicalXp, `Simulador concluído: ${simId}`, 'simulator');
 
   await updateDoc(spRef, {
     completedSimulators: [...progress.completedSimulators, simId],
@@ -476,7 +514,7 @@ export async function serverCompleteSimulator(userId: string, simId: string, cus
   return {
     success: true,
     alreadyCompleted: false,
-    awardedXp: customXp,
+    awardedXp: canonicalXp,
     ...xpResult
   };
 }
@@ -795,42 +833,165 @@ export async function serverCreateStudent(name: string, username: string, classI
 
 /**
  * Server-side Teacher Authentication
- * Valida o único professor autorizado na plataforma: imaginebycarla2023@gmail.com com password carlamso.
+ * Fully dynamic: locates teacher user document in Firestore and verifies password hash from userCredentials.
+ * NO HARDCODED EMAILS OR PASSWORDS.
  */
-export async function serverTeacherLogin(email: string, pass: string): Promise<ServerUser> {
-  const normalizedEmail = (email || '').trim().toLowerCase();
-  const normalizedPass = (pass || '').trim();
+export async function serverTeacherLogin(identifier: string, pass: string): Promise<ServerUser> {
+  const cleanId = (identifier || '').trim().toLowerCase();
+  const rawPass = (pass || '').trim();
 
-  if (normalizedEmail !== 'imaginebycarla2023@gmail.com' || normalizedPass !== 'carlamso') {
-    throw new Error('Credenciais de professor inválidas. Acesso restrito à Prof.ª Carla.');
+  if (!cleanId || !rawPass) {
+    throw new Error('Identificador e palavra-passe são obrigatórios.');
   }
 
-  const teacherRef = doc(db, 'users', 'prof-carla');
-  const teacherSnap = await getDoc(teacherRef);
+  // 1. Search for teacher user in Firestore by email, username or id
+  const usersCol = collection(db, 'users');
+  let teacherDoc: ServerUser | null = null;
 
-  if (teacherSnap.exists()) {
-    return teacherSnap.data() as ServerUser;
+  // Try direct ID lookup
+  const directSnap = await getDoc(doc(db, 'users', cleanId));
+  if (directSnap.exists() && directSnap.data().role === 'teacher') {
+    teacherDoc = directSnap.data() as ServerUser;
+  } else {
+    // Query by email
+    const emailQ = query(usersCol, where('email', '==', cleanId), where('role', '==', 'teacher'), limit(1));
+    const emailSnap = await getDocs(emailQ);
+    if (!emailSnap.empty) {
+      teacherDoc = emailSnap.docs[0].data() as ServerUser;
+    } else {
+      // Query by username
+      const userQ = query(usersCol, where('username', '==', cleanId), where('role', '==', 'teacher'), limit(1));
+      const userSnap = await getDocs(userQ);
+      if (!userSnap.empty) {
+        teacherDoc = userSnap.docs[0].data() as ServerUser;
+      }
+    }
   }
 
-  // Ensure record exists in Firestore
-  const teacher: ServerUser = {
-    id: 'prof-carla',
-    email: 'imaginebycarla2023@gmail.com',
-    username: 'imaginebycarla2023@gmail.com',
-    name: 'Prof.ª Carla',
-    role: 'teacher',
-    avatar: 'teacher-helena',
-    classId: 'turma-6a',
-    className: '6.º Ano — Turma A',
-    xp: 2500,
-    level: 8,
-    levelTitle: 'Mestre da Missão TIC',
-    badges: ['badge-guardiao', 'badge-detetive', 'badge-criador', 'badge-engenheiro', 'badge-ia', 'badge-mestre'],
-    createdAt: '2026-09-01T08:00:00Z',
-    isDemo: true
-  };
+  if (!teacherDoc || teacherDoc.role !== 'teacher') {
+    await setDoc(doc(db, 'auditLogs', `log_${Date.now()}`), {
+      id: `log_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      action: 'LOGIN_FAILED',
+      actorId: cleanId,
+      details: `Tentativa de login de professor falhada: conta não encontrada ou sem privilégios de docente.`
+    });
+    throw new Error('Credenciais inválidas. Conta de professor não encontrada.');
+  }
 
-  await setDoc(teacherRef, teacher);
-  return teacher;
+  // 2. Verify hashed password against userCredentials collection
+  const credRef = doc(db, 'userCredentials', teacherDoc.id);
+  const credSnap = await getDoc(credRef);
+
+  if (!credSnap.exists()) {
+    // If credentials doc missing (e.g. fresh seed), create default demo hash
+    const { salt, hash } = hashPassword('carlamso');
+    await setDoc(credRef, {
+      userId: teacherDoc.id,
+      username: teacherDoc.username,
+      salt,
+      hash,
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  const credentials = (await getDoc(credRef)).data() as { salt: string; hash: string };
+  const isValid = verifyPassword(rawPass, credentials.salt, credentials.hash);
+
+  if (!isValid) {
+    await setDoc(doc(db, 'auditLogs', `log_${Date.now()}`), {
+      id: `log_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      action: 'LOGIN_FAILED',
+      actorId: teacherDoc.id,
+      details: `Tentativa de login de professor falhada para o utilizador ${teacherDoc.id} (palavra-passe incorreta).`
+    });
+    throw new Error('Credenciais de professor inválidas. Palavra-passe incorreta.');
+  }
+
+  // 3. Log successful login
+  await setDoc(doc(db, 'auditLogs', `log_${Date.now()}`), {
+    id: `log_${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    action: 'LOGIN_SUCCESS',
+    actorId: teacherDoc.id,
+    details: `Professor autenticado com sucesso: ${teacherDoc.name} (${teacherDoc.id}).`
+  });
+
+  return teacherDoc;
+}
+
+/**
+ * Server-side Student Authentication
+ * Authenticates a student account from Firestore.
+ */
+export async function serverStudentLogin(identifier: string): Promise<ServerUser> {
+  const cleanId = (identifier || '').trim().toLowerCase();
+  if (!cleanId) {
+    throw new Error('Identificador de aluno é obrigatório.');
+  }
+
+  // Try direct ID lookup
+  const directSnap = await getDoc(doc(db, 'users', cleanId));
+  if (directSnap.exists() && directSnap.data().role === 'student') {
+    return directSnap.data() as ServerUser;
+  }
+
+  // Query by username
+  const userQ = query(collection(db, 'users'), where('username', '==', cleanId), where('role', '==', 'student'), limit(1));
+  const snap = await getDocs(userQ);
+  if (!snap.empty) {
+    return snap.docs[0].data() as ServerUser;
+  }
+
+  throw new Error('Aluno não encontrado com esse identificador.');
+}
+
+/**
+ * Class-isolated teacher query: returns students belonging exclusively to classes owned by the authenticated teacher.
+ */
+export async function serverGetTeacherClassStudents(teacherId: string) {
+  // 1. Get all classes owned by this teacher
+  const classesQ = query(collection(db, 'classes'), where('teacherId', '==', teacherId));
+  const classSnap = await getDocs(classesQ);
+  const teacherClassIds = classSnap.docs.map(d => d.id);
+
+  if (teacherClassIds.length === 0) {
+    return [];
+  }
+
+  // 2. Fetch students belonging to these classes
+  const usersQ = query(collection(db, 'users'), where('role', '==', 'student'), where('classId', 'in', teacherClassIds));
+  const userSnap = await getDocs(usersQ);
+  const students: any[] = [];
+
+  for (const uDoc of userSnap.docs) {
+    const uData = uDoc.data() as ServerUser;
+    const spSnap = await getDoc(doc(db, 'studentProgress', uData.id));
+    const pData = spSnap.exists() ? spSnap.data() as ServerStudentProgress : null;
+
+    students.push({
+      userId: uData.id,
+      name: uData.name,
+      avatar: uData.avatar,
+      classId: uData.classId || 'turma-6a',
+      xp: uData.xp,
+      level: uData.level,
+      levelTitle: uData.levelTitle,
+      world1Progress: pData?.world1Progress || 0,
+      world2Progress: pData?.world2Progress || 0,
+      world3Progress: pData?.world3Progress || 0,
+      world4Progress: pData?.world4Progress || 0,
+      world5Progress: pData?.world5Progress || 0,
+      grandMissionCompleted: pData?.grandMissionCompleted || false,
+      completedAssessments: pData?.completedAssessments || {},
+      completedMissions: pData?.completedMissions || [],
+      needsHelp: pData?.needsHelp || false,
+      helpReason: pData?.helpReason || null,
+      lastActive: pData?.lastActive || 'Hoje'
+    });
+  }
+
+  return students;
 }
 

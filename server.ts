@@ -1,6 +1,7 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import cookieParser from 'cookie-parser';
 import { createServer as createViteServer } from 'vite';
 import {
   db,
@@ -12,8 +13,24 @@ import {
   serverSubmitMission,
   serverClaimWeeklyChallenge,
   serverCreateStudent,
-  serverTeacherLogin
+  serverTeacherLogin,
+  serverStudentLogin,
+  serverGetTeacherClassStudents,
+  ServerUser
 } from './src/server/firestoreService';
+import {
+  createSession,
+  getSession,
+  invalidateSession,
+  requireAuth,
+  requireTeacher,
+  requireStudent,
+  verifyClassOwnership,
+  verifyStudentBelongsToTeacher,
+  createRateLimiter,
+  extractSessionId,
+  AuthenticatedRequest
+} from './src/server/authSecurity';
 import {
   collection,
   getDocs,
@@ -23,6 +40,7 @@ import {
   updateDoc,
   deleteDoc,
   query,
+  where,
   orderBy,
   limit
 } from 'firebase/firestore';
@@ -34,7 +52,22 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Middlewares
   app.use(express.json());
+  app.use(cookieParser());
+
+  // Rate limiters
+  const authLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: 'Demasiadas tentativas de autenticação. Por favor aguarde 15 minutos.'
+  });
+
+  const actionLimiter = createRateLimiter({
+    windowMs: 60 * 1000,
+    max: 120,
+    message: 'Frequência de pedidos excedida. Aguarde alguns segundos.'
+  });
 
   // Automatically initialize & seed Firestore collections on start
   initializeAndSeedFirestore()
@@ -50,7 +83,7 @@ async function startServer() {
         status: 'ok',
         platform: 'Missão TIC - 6.º Ano de Escolaridade',
         firestoreConnected: true,
-        firestoreDatabaseId: 'ai-studio-7eb79294-324f-4caf-b2eb-6a947b8970de',
+        securityModel: 'Server-Authoritative RBAC (student & teacher only)',
         timestamp: new Date().toISOString()
       });
     } catch (e: any) {
@@ -68,7 +101,169 @@ async function startServer() {
   });
 
   // ------------------------------------------------------------------
-  // REST API: CONTENT READ FROM FIRESTORE
+  // REST API: AUTHENTICATION & SESSIONS (SERVER-SIDE WITH HTTPONLY COOKIES)
+  // ------------------------------------------------------------------
+
+  // Teacher Login (Dynamic credentials lookup & scrypt verification)
+  app.post('/api/auth/teacher-login', authLimiter, async (req: Request, res: Response) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email / identificador e palavra-passe são obrigatórios.' });
+      }
+
+      const teacher = await serverTeacherLogin(email, password);
+
+      // Create secure server session
+      const session = createSession({
+        id: teacher.id,
+        username: teacher.username,
+        name: teacher.name,
+        role: 'teacher',
+        classId: teacher.classId
+      });
+
+      // Set HttpOnly, SameSite cookie
+      res.cookie('missao_tic_session', session.id, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000 // 24h
+      });
+
+      res.json({
+        success: true,
+        teacher: {
+          id: teacher.id,
+          username: teacher.username,
+          name: teacher.name,
+          role: 'teacher',
+          avatar: teacher.avatar,
+          classId: teacher.classId,
+          className: teacher.className,
+          xp: teacher.xp,
+          level: teacher.level,
+          levelTitle: teacher.levelTitle,
+          badges: teacher.badges
+        },
+        sessionId: session.id
+      });
+    } catch (err: any) {
+      res.status(401).json({ error: err.message || 'Credenciais inválidas.' });
+    }
+  });
+
+  // Student Login
+  app.post('/api/auth/student-login', authLimiter, async (req: Request, res: Response) => {
+    try {
+      const { identifier } = req.body;
+      if (!identifier) {
+        return res.status(400).json({ error: 'Identificador de aluno é obrigatório.' });
+      }
+
+      const student = await serverStudentLogin(identifier);
+
+      const session = createSession({
+        id: student.id,
+        username: student.username,
+        name: student.name,
+        role: 'student',
+        classId: student.classId
+      });
+
+      res.cookie('missao_tic_session', session.id, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000
+      });
+
+      res.json({
+        success: true,
+        user: {
+          id: student.id,
+          username: student.username,
+          name: student.name,
+          role: 'student',
+          avatar: student.avatar,
+          classId: student.classId,
+          className: student.className,
+          xp: student.xp,
+          level: student.level,
+          levelTitle: student.levelTitle,
+          badges: student.badges
+        },
+        sessionId: session.id
+      });
+    } catch (err: any) {
+      res.status(401).json({ error: err.message || 'Aluno não encontrado.' });
+    }
+  });
+
+  // Check Current Authenticated Session
+  app.get('/api/auth/me', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const sessionUser = req.user!;
+      const userRef = doc(db, 'users', sessionUser.userId);
+      const snap = await getDoc(userRef);
+
+      if (!snap.exists()) {
+        return res.status(404).json({ error: 'Utilizador não encontrado.' });
+      }
+
+      const userData = snap.data() as ServerUser;
+      res.json({
+        user: {
+          id: userData.id,
+          username: userData.username,
+          email: userData.email,
+          name: userData.name,
+          role: userData.role,
+          avatar: userData.avatar,
+          classId: userData.classId,
+          className: userData.className,
+          xp: userData.xp,
+          level: userData.level,
+          levelTitle: userData.levelTitle,
+          badges: userData.badges
+        },
+        session: {
+          id: req.sessionId,
+          role: sessionUser.role,
+          expiresAt: sessionUser.expiresAt
+        }
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Logout
+  app.post('/api/auth/logout', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const sessionId = extractSessionId(req);
+      if (sessionId) {
+        const session = getSession(sessionId);
+        if (session) {
+          await setDoc(doc(db, 'auditLogs', `log_${Date.now()}`), {
+            id: `log_${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            action: 'USER_LOGOUT',
+            actorId: session.userId,
+            details: `Utilizador ${session.name} (${session.role}) encerrou a sessão.`
+          });
+        }
+        invalidateSession(sessionId);
+      }
+      res.clearCookie('missao_tic_session');
+      res.json({ success: true, message: 'Sessão terminada.' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ------------------------------------------------------------------
+  // REST API: CONTENT READ (PUBLIC/AUTHENTICATED)
   // ------------------------------------------------------------------
   app.get('/api/worlds', async (_req, res) => {
     try {
@@ -116,12 +311,27 @@ async function startServer() {
   });
 
   // ------------------------------------------------------------------
-  // REST API: USERS & PROGRESS (REAL FIRESTORE)
+  // REST API: USERS & PROGRESS
   // ------------------------------------------------------------------
   app.get('/api/users', async (_req, res) => {
     try {
       const snap = await getDocs(collection(db, 'users'));
-      const users = snap.docs.map(d => d.data());
+      const users = snap.docs.map(d => {
+        const u = d.data();
+        return {
+          id: u.id,
+          username: u.username,
+          name: u.name,
+          role: u.role,
+          avatar: u.avatar,
+          classId: u.classId,
+          className: u.className,
+          xp: u.xp,
+          level: u.level,
+          levelTitle: u.levelTitle,
+          badges: u.badges
+        };
+      });
       res.json({ users });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -134,7 +344,22 @@ async function startServer() {
       if (!userSnap.exists()) {
         return res.status(404).json({ error: 'Utilizador não encontrado' });
       }
-      res.json({ user: userSnap.data() });
+      const u = userSnap.data();
+      res.json({
+        user: {
+          id: u.id,
+          username: u.username,
+          name: u.name,
+          role: u.role,
+          avatar: u.avatar,
+          classId: u.classId,
+          className: u.className,
+          xp: u.xp,
+          level: u.level,
+          levelTitle: u.levelTitle,
+          badges: u.badges
+        }
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -152,98 +377,87 @@ async function startServer() {
     }
   });
 
-  // Create Student in Firestore (Only students are created; only 1 teacher Carla exists)
-  app.post('/api/students/create', async (req, res) => {
-    try {
-      const { name, username, classId } = req.body;
-      if (!name || !username) {
-        return res.status(400).json({ error: 'Nome e username são obrigatórios' });
-      }
-      const newStudent = await serverCreateStudent(name, username, classId || 'turma-6a');
-      res.json({ success: true, student: newStudent });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // Teacher Authentication Endpoint (Único professor da plataforma)
-  app.post('/api/auth/teacher-login', async (req, res) => {
-    try {
-      const { email, password } = req.body;
-      if (!email || !password) {
-        return res.status(400).json({ error: 'Email e palavra-passe são obrigatórios.' });
-      }
-      const teacher = await serverTeacherLogin(email, password);
-      res.json({ success: true, teacher });
-    } catch (err: any) {
-      res.status(401).json({ error: err.message });
-    }
-  });
-
   // ------------------------------------------------------------------
   // REST API: SERVER-AUTHORITATIVE ACTIONS (XP, ASSESSMENTS, MISSIONS)
-  // Prevents client tampering with XP, results, badges, permissions
+  // Identity is taken EXCLUSIVELY from req.user (authenticated session).
+  // Any req.body.xp or req.body.userId is strictly ignored.
   // ------------------------------------------------------------------
-  app.post('/api/action/complete-activity', async (req, res) => {
+  app.post('/api/action/complete-activity', requireAuth, actionLimiter, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { userId, activityId, xp } = req.body;
-      if (!userId || !activityId) {
-        return res.status(400).json({ error: 'Parâmetros em falta' });
+      const actorUserId = req.user!.userId;
+      const { activityId } = req.body;
+
+      if (!activityId) {
+        return res.status(400).json({ error: 'Identificador da atividade em falta.' });
       }
-      const result = await serverCompleteActivity(userId, activityId, xp || 20);
+
+      // Calls server-authoritative method with canonical XP
+      const result = await serverCompleteActivity(actorUserId, activityId);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  app.post('/api/action/complete-simulator', async (req, res) => {
+  app.post('/api/action/complete-simulator', requireAuth, actionLimiter, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { userId, simulatorId, xp } = req.body;
-      if (!userId || !simulatorId) {
-        return res.status(400).json({ error: 'Parâmetros em falta' });
+      const actorUserId = req.user!.userId;
+      const { simulatorId } = req.body;
+
+      if (!simulatorId) {
+        return res.status(400).json({ error: 'Identificador do simulador em falta.' });
       }
-      const result = await serverCompleteSimulator(userId, simulatorId, xp || 30);
+
+      const result = await serverCompleteSimulator(actorUserId, simulatorId);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  app.post('/api/action/submit-assessment', async (req, res) => {
+  app.post('/api/action/submit-assessment', requireAuth, actionLimiter, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { userId, worldId, answers } = req.body;
-      if (!userId || !worldId || !answers) {
-        return res.status(400).json({ error: 'Parâmetros em falta' });
+      const actorUserId = req.user!.userId;
+      const { worldId, answers } = req.body;
+
+      if (!worldId || !answers || typeof answers !== 'object') {
+        return res.status(400).json({ error: 'Dados da avaliação incompletos.' });
       }
+
       // Evaluated strictly on the server against Firestore questions
-      const result = await serverSubmitAssessment(userId, worldId, answers);
+      const result = await serverSubmitAssessment(actorUserId, worldId, answers);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  app.post('/api/action/submit-mission', async (req, res) => {
+  app.post('/api/action/submit-mission', requireAuth, actionLimiter, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { userId, worldId, submissionText, evidenceUrl } = req.body;
-      if (!userId || !worldId || !submissionText) {
-        return res.status(400).json({ error: 'Parâmetros em falta' });
+      const actorUserId = req.user!.userId;
+      const { worldId, submissionText, evidenceUrl } = req.body;
+
+      if (!worldId || !submissionText || submissionText.trim().length < 5) {
+        return res.status(400).json({ error: 'O texto da submissão deve conter pelo menos 5 carateres.' });
       }
-      const result = await serverSubmitMission(userId, worldId, submissionText, evidenceUrl);
+
+      const result = await serverSubmitMission(actorUserId, worldId, submissionText.trim(), evidenceUrl);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  app.post('/api/action/claim-challenge', async (req, res) => {
+  app.post('/api/action/claim-challenge', requireAuth, actionLimiter, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { userId, challengeId, selectedOption } = req.body;
-      if (!userId || !challengeId || !selectedOption) {
-        return res.status(400).json({ error: 'Parâmetros em falta' });
+      const actorUserId = req.user!.userId;
+      const { challengeId, selectedOption } = req.body;
+
+      if (!challengeId || !selectedOption) {
+        return res.status(400).json({ error: 'Identificador do desafio ou opção em falta.' });
       }
-      const result = await serverClaimWeeklyChallenge(userId, challengeId, selectedOption);
+
+      const result = await serverClaimWeeklyChallenge(actorUserId, challengeId, selectedOption);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -251,11 +465,12 @@ async function startServer() {
   });
 
   // ------------------------------------------------------------------
-  // REST API: TEACHER DASHBOARD & GESTÃO PEDAGÓGICA (FIRESTORE)
+  // REST API: TEACHER DASHBOARD & PEDAGOGICAL MANAGEMENT
+  // Protected with requireAuth + requireTeacher and Class Isolation
   // ------------------------------------------------------------------
 
   // 1. GESTÃO DE MUNDOS NO FIRESTORE
-  app.get('/api/teacher/worlds', async (_req, res) => {
+  app.get('/api/teacher/worlds', requireAuth, requireTeacher, async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const snap = await getDocs(collection(db, 'worlds'));
       const worlds = snap.docs.map(d => {
@@ -274,7 +489,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/teacher/worlds/:id/toggle-visibility', async (req, res) => {
+  app.post('/api/teacher/worlds/:id/toggle-visibility', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const worldRef = doc(db, 'worlds', req.params.id);
       const snap = await getDoc(worldRef);
@@ -287,13 +502,22 @@ async function startServer() {
         isPublished: newStatus,
         updatedAt: new Date().toISOString()
       });
+
+      await setDoc(doc(db, 'auditLogs', `log_${Date.now()}`), {
+        id: `log_${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        action: 'WORLD_VISIBILITY_TOGGLED',
+        actorId: req.user!.userId,
+        details: `Mundo ${req.params.id} visibilidade alterada para: ${newStatus ? 'Publicado' : 'Oculto'}.`
+      });
+
       res.json({ success: true, isPublished: newStatus });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  app.post('/api/teacher/worlds/:id/toggle-unlock', async (req, res) => {
+  app.post('/api/teacher/worlds/:id/toggle-unlock', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const worldRef = doc(db, 'worlds', req.params.id);
       const snap = await getDoc(worldRef);
@@ -307,19 +531,30 @@ async function startServer() {
         updatedAt: new Date().toISOString()
       });
 
-      // Se desbloqueado para todos, atualizar o progresso de todos os alunos da turma
+      // Se desbloqueado para todos, atualizar alunos das turmas deste professor
       if (newUnlock) {
-        const spSnap = await getDocs(collection(db, 'studentProgress'));
-        for (const spDoc of spSnap.docs) {
-          const spData = spDoc.data();
-          const unlocked = spData.unlockedWorlds || [];
-          if (!unlocked.includes(req.params.id)) {
-            await updateDoc(doc(db, 'studentProgress', spDoc.id), {
-              unlockedWorlds: [...unlocked, req.params.id]
-            });
+        const teacherClassStudents = await serverGetTeacherClassStudents(req.user!.userId);
+        for (const s of teacherClassStudents) {
+          const spRef = doc(db, 'studentProgress', s.userId);
+          const spSnap = await getDoc(spRef);
+          if (spSnap.exists()) {
+            const unlocked = spSnap.data().unlockedWorlds || [];
+            if (!unlocked.includes(req.params.id)) {
+              await updateDoc(spRef, {
+                unlockedWorlds: [...unlocked, req.params.id]
+              });
+            }
           }
         }
       }
+
+      await setDoc(doc(db, 'auditLogs', `log_${Date.now()}`), {
+        id: `log_${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        action: 'WORLD_UNLOCK_TOGGLED',
+        actorId: req.user!.userId,
+        details: `Mundo ${req.params.id} desbloqueio geral alterado para: ${newUnlock}.`
+      });
 
       res.json({ success: true, unlockedForAll: newUnlock });
     } catch (err: any) {
@@ -327,7 +562,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/teacher/worlds/:id/notes', async (req, res) => {
+  app.post('/api/teacher/worlds/:id/notes', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { notes } = req.body;
       const worldRef = doc(db, 'worlds', req.params.id);
@@ -341,10 +576,9 @@ async function startServer() {
     }
   });
 
-  app.post('/api/teacher/worlds/unlock-all', async (_req, res) => {
+  app.post('/api/teacher/worlds/unlock-all', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const allWorlds = ['mundo-1', 'mundo-2', 'mundo-3', 'mundo-4', 'mundo-5'];
-      // Atualizar mundos
       for (const wId of allWorlds) {
         await updateDoc(doc(db, 'worlds', wId), {
           unlockedForAll: true,
@@ -352,13 +586,22 @@ async function startServer() {
           updatedAt: new Date().toISOString()
         });
       }
-      // Atualizar todos os alunos
-      const spSnap = await getDocs(collection(db, 'studentProgress'));
-      for (const spDoc of spSnap.docs) {
-        await updateDoc(doc(db, 'studentProgress', spDoc.id), {
+
+      const teacherStudents = await serverGetTeacherClassStudents(req.user!.userId);
+      for (const s of teacherStudents) {
+        await updateDoc(doc(db, 'studentProgress', s.userId), {
           unlockedWorlds: allWorlds
         });
       }
+
+      await setDoc(doc(db, 'auditLogs', `log_${Date.now()}`), {
+        id: `log_${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        action: 'ALL_WORLDS_UNLOCKED',
+        actorId: req.user!.userId,
+        details: `Todos os 5 mundos foram desbloqueados para as turmas do professor.`
+      });
+
       res.json({ success: true, message: 'Todos os 5 mundos foram desbloqueados para a turma!' });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -366,10 +609,15 @@ async function startServer() {
   });
 
   // 2. GESTÃO DE ATIVIDADES E SUBMISSÕES NO FIRESTORE
-  app.get('/api/teacher/activities', async (_req, res) => {
+  app.get('/api/teacher/activities', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
     try {
+      const teacherStudents = await serverGetTeacherClassStudents(req.user!.userId);
+      const studentIds = new Set(teacherStudents.map(s => s.userId));
+
       const spSnap = await getDocs(collection(db, 'studentProgress'));
-      const allProgress = spSnap.docs.map(d => d.data());
+      const allProgress = spSnap.docs
+        .map(d => d.data())
+        .filter((p: any) => studentIds.has(p.userId));
 
       const wSnap = await getDocs(collection(db, 'worlds'));
       const worlds = wSnap.docs.map(d => d.data());
@@ -402,20 +650,25 @@ async function startServer() {
         };
       });
 
-      res.json({ activities: activitiesByWorld, totalStudents: allProgress.length });
+      res.json({ activities: activitiesByWorld, totalStudents: teacherStudents.length });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  // Submissões de trabalhos reais dos alunos para avaliação da Prof.ª Carla
-  app.get('/api/teacher/submissions', async (_req, res) => {
+  // Submissões de trabalhos reais dos alunos para avaliação da Professora (filtrado pela turma do professor)
+  app.get('/api/teacher/submissions', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const snap = await getDocs(collection(db, 'missions'));
-      let submissions = snap.docs.map(d => d.data());
+      const teacherStudents = await serverGetTeacherClassStudents(req.user!.userId);
+      const studentIds = new Set(teacherStudents.map(s => s.userId));
 
-      // Se ainda não existirem submissões, semear 3 trabalhos autênticos de alunos
-      if (submissions.length === 0) {
+      const snap = await getDocs(collection(db, 'missions'));
+      let submissions = snap.docs
+        .map(d => d.data())
+        .filter((m: any) => studentIds.has(m.userId));
+
+      // Se ainda não existirem submissões, semear 3 trabalhos autênticos
+      if (submissions.length === 0 && teacherStudents.length > 0) {
         const sampleMissions = [
           {
             id: 'sub_alex_m1',
@@ -461,7 +714,7 @@ async function startServer() {
         for (const sm of sampleMissions) {
           await setDoc(doc(db, 'missions', sm.id), sm);
         }
-        submissions = sampleMissions;
+        submissions = sampleMissions.filter(m => studentIds.has(m.userId));
       }
 
       res.json({ submissions });
@@ -470,7 +723,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/teacher/submissions/:id/grade', async (req, res) => {
+  app.post('/api/teacher/submissions/:id/grade', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { grade, feedback, xpBonus } = req.body;
       const subRef = doc(db, 'missions', req.params.id);
@@ -480,7 +733,14 @@ async function startServer() {
       }
 
       const subData = snap.data();
-      const awardedXp = xpBonus || 50;
+
+      // Authorization verification: student must belong to teacher's class
+      const belongs = await verifyStudentBelongsToTeacher(req.user!.userId, subData.userId);
+      if (!belongs) {
+        return res.status(403).json({ error: 'Não autorizado a avaliar trabalhos de alunos fora das suas turmas.' });
+      }
+
+      const awardedXp = Math.min(Math.max(Number(xpBonus) || 50, 10), 100);
 
       await updateDoc(subRef, {
         status: 'graded',
@@ -489,7 +749,6 @@ async function startServer() {
         gradedAt: new Date().toISOString()
       });
 
-      // Atribuir XP ao aluno no Firestore
       if (subData.userId) {
         await serverAwardXp(
           subData.userId,
@@ -499,6 +758,14 @@ async function startServer() {
         );
       }
 
+      await setDoc(doc(db, 'auditLogs', `log_${Date.now()}`), {
+        id: `log_${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        action: 'MISSION_GRADED',
+        actorId: req.user!.userId,
+        details: `Submissão ${req.params.id} do aluno ${subData.userId} avaliada com '${grade}' (+${awardedXp} XP).`
+      });
+
       res.json({ success: true, message: `Trabalho avaliado com sucesso! +${awardedXp} XP atribuídos ao aluno.` });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -506,56 +773,53 @@ async function startServer() {
   });
 
   // 3. GESTÃO DE ALUNOS NO FIRESTORE
-  app.get('/api/teacher/class-students', async (_req, res) => {
+  app.get('/api/teacher/class-students', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const spSnap = await getDocs(collection(db, 'studentProgress'));
-      const uSnap = await getDocs(collection(db, 'users'));
-
-      const usersMap = new Map();
-      uSnap.docs.forEach(d => {
-        usersMap.set(d.id, d.data());
-      });
-
-      const students = spSnap.docs.map(d => {
-        const p = d.data();
-        const u = usersMap.get(p.userId) || {};
-        return {
-          userId: p.userId,
-          name: u.name || p.name || 'Aluno',
-          avatar: u.avatar || 'alex',
-          xp: u.xp || 0,
-          level: u.level || 1,
-          levelTitle: u.levelTitle || 'Novato Digital',
-          unlockedWorlds: p.unlockedWorlds || ['mundo-1'],
-          completedActivitiesCount: p.completedActivities?.length || 0,
-          completedSimulatorsCount: p.completedSimulators?.length || 0,
-          completedMissionsCount: p.completedMissions?.length || 0,
-          world1Progress: p.world1Progress || 0,
-          world2Progress: p.world2Progress || 0,
-          world3Progress: p.world3Progress || 0,
-          world4Progress: p.world4Progress || 0,
-          world5Progress: p.world5Progress || 0,
-          needsHelp: p.needsHelp === true,
-          helpReason: p.helpReason || null,
-          badges: u.badges || []
-        };
-      });
-
+      const students = await serverGetTeacherClassStudents(req.user!.userId);
       res.json({ students });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  // Atribuir XP de Mérito pela Professora
-  app.post('/api/teacher/students/:id/award-xp', async (req, res) => {
+  // Create student under teacher's class
+  app.post('/api/teacher/students/create', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
     try {
+      const { name, username, classId } = req.body;
+      if (!name || !username) {
+        return res.status(400).json({ error: 'Nome e username são obrigatórios.' });
+      }
+
+      const targetClassId = classId || 'turma-6a';
+      const isOwner = await verifyClassOwnership(req.user!.userId, targetClassId);
+      if (!isOwner) {
+        return res.status(403).json({ error: 'Não autorizado a criar alunos numa turma que não lhe pertence.' });
+      }
+
+      const newStudent = await serverCreateStudent(name.trim(), username.trim(), targetClassId);
+      res.json({ success: true, student: newStudent });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Atribuir XP de Mérito pela Professora
+  app.post('/api/teacher/students/:id/award-xp', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const studentId = req.params.id;
       const { amount, reason } = req.body;
+
+      const isTeacherOfStudent = await verifyStudentBelongsToTeacher(req.user!.userId, studentId);
+      if (!isTeacherOfStudent) {
+        return res.status(403).json({ error: 'Não autorizado a atribuir XP a alunos fora das suas turmas.' });
+      }
+
+      const xpAmount = Math.min(Math.max(Number(amount) || 25, 1), 200);
       const result = await serverAwardXp(
-        req.params.id,
-        amount || 25,
+        studentId,
+        xpAmount,
         reason || 'Bónus de Mérito atribuído pela Prof.ª Carla',
-        'manual'
+        'teacher_bonus'
       );
       res.json({ success: true, result });
     } catch (err: any) {
@@ -564,21 +828,37 @@ async function startServer() {
   });
 
   // Atribuir Medalha de Mérito pela Professora
-  app.post('/api/teacher/students/:id/award-badge', async (req, res) => {
+  app.post('/api/teacher/students/:id/award-badge', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
     try {
+      const studentId = req.params.id;
       const { badgeId } = req.body;
-      const userRef = doc(db, 'users', req.params.id);
+
+      const isTeacherOfStudent = await verifyStudentBelongsToTeacher(req.user!.userId, studentId);
+      if (!isTeacherOfStudent) {
+        return res.status(403).json({ error: 'Não autorizado a atribuir medalhas a alunos fora das suas turmas.' });
+      }
+
+      const userRef = doc(db, 'users', studentId);
       const snap = await getDoc(userRef);
       if (!snap.exists()) {
-        return res.status(404).json({ error: 'Aluno não encontrado' });
+        return res.status(404).json({ error: 'Aluno não encontrado.' });
       }
+
       const u = snap.data();
       const currentBadges = u.badges || [];
       if (!currentBadges.includes(badgeId)) {
         await updateDoc(userRef, {
           badges: [...currentBadges, badgeId]
         });
+
+        await setDoc(doc(db, 'studentBadges', `sb_${studentId}_${badgeId}`), {
+          id: `sb_${studentId}_${badgeId}`,
+          userId: studentId,
+          badgeId,
+          unlockedAt: new Date().toISOString()
+        });
       }
+
       res.json({ success: true, badges: [...currentBadges, badgeId] });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -586,9 +866,15 @@ async function startServer() {
   });
 
   // Desbloquear todos os mundos para um aluno específico
-  app.post('/api/teacher/students/:id/unlock-worlds', async (req, res) => {
+  app.post('/api/teacher/students/:id/unlock-worlds', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const spRef = doc(db, 'studentProgress', req.params.id);
+      const studentId = req.params.id;
+      const isTeacherOfStudent = await verifyStudentBelongsToTeacher(req.user!.userId, studentId);
+      if (!isTeacherOfStudent) {
+        return res.status(403).json({ error: 'Não autorizado a desbloquear mundos para alunos fora das suas turmas.' });
+      }
+
+      const spRef = doc(db, 'studentProgress', studentId);
       const allWorlds = ['mundo-1', 'mundo-2', 'mundo-3', 'mundo-4', 'mundo-5'];
       await updateDoc(spRef, {
         unlockedWorlds: allWorlds
@@ -600,14 +886,21 @@ async function startServer() {
   });
 
   // Repor progresso de um aluno (Reset progress)
-  app.post('/api/teacher/students/:id/reset-progress', async (req, res) => {
+  app.post('/api/teacher/students/:id/reset-progress', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const spRef = doc(db, 'studentProgress', req.params.id);
+      const studentId = req.params.id;
+      const isTeacherOfStudent = await verifyStudentBelongsToTeacher(req.user!.userId, studentId);
+      if (!isTeacherOfStudent) {
+        return res.status(403).json({ error: 'Não autorizado a reiniciar o progresso de alunos fora das suas turmas.' });
+      }
+
+      const spRef = doc(db, 'studentProgress', studentId);
       await updateDoc(spRef, {
         completedActivities: [],
         completedSimulators: [],
         completedMissions: [],
         completedAssessments: {},
+        claimedWeeklyChallenges: [],
         world1Progress: 0,
         world2Progress: 0,
         world3Progress: 0,
@@ -617,11 +910,19 @@ async function startServer() {
         helpReason: null
       });
 
-      const uRef = doc(db, 'users', req.params.id);
+      const uRef = doc(db, 'users', studentId);
       await updateDoc(uRef, {
         xp: 0,
         level: 1,
         levelTitle: 'Novato Digital'
+      });
+
+      await setDoc(doc(db, 'auditLogs', `log_${Date.now()}`), {
+        id: `log_${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        action: 'STUDENT_PROGRESS_RESET',
+        actorId: req.user!.userId,
+        details: `Progresso do aluno ${studentId} reiniciado pelo professor.`
       });
 
       res.json({ success: true, message: 'Progresso do aluno reiniciado com sucesso.' });
@@ -631,10 +932,16 @@ async function startServer() {
   });
 
   // Alternar estado de apoio pedagógico (Needs Help)
-  app.post('/api/teacher/students/:id/toggle-help', async (req, res) => {
+  app.post('/api/teacher/students/:id/toggle-help', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
     try {
+      const studentId = req.params.id;
+      const isTeacherOfStudent = await verifyStudentBelongsToTeacher(req.user!.userId, studentId);
+      if (!isTeacherOfStudent) {
+        return res.status(403).json({ error: 'Não autorizado.' });
+      }
+
       const { needsHelp, helpReason } = req.body;
-      const spRef = doc(db, 'studentProgress', req.params.id);
+      const spRef = doc(db, 'studentProgress', studentId);
       await updateDoc(spRef, {
         needsHelp: !!needsHelp,
         helpReason: helpReason || null
@@ -646,17 +953,85 @@ async function startServer() {
   });
 
   // Eliminar aluno no Firestore
-  app.delete('/api/teacher/students/:id', async (req, res) => {
+  app.delete('/api/teacher/students/:id', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      await deleteDoc(doc(db, 'users', req.params.id));
-      await deleteDoc(doc(db, 'studentProgress', req.params.id));
-      await deleteDoc(doc(db, 'classMembers', `turma-6a_${req.params.id}`));
+      const studentId = req.params.id;
+      const isTeacherOfStudent = await verifyStudentBelongsToTeacher(req.user!.userId, studentId);
+      if (!isTeacherOfStudent) {
+        return res.status(403).json({ error: 'Não autorizado a remover alunos fora das suas turmas.' });
+      }
+
+      const uRef = doc(db, 'users', studentId);
+      const uSnap = await getDoc(uRef);
+      const uData = uSnap.exists() ? uSnap.data() : null;
+
+      await deleteDoc(doc(db, 'users', studentId));
+      await deleteDoc(doc(db, 'studentProgress', studentId));
+      if (uData?.classId) {
+        await deleteDoc(doc(db, 'classMembers', `${uData.classId}_${studentId}`));
+      }
+
+      await setDoc(doc(db, 'auditLogs', `log_${Date.now()}`), {
+        id: `log_${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        action: 'STUDENT_DELETED',
+        actorId: req.user!.userId,
+        details: `Aluno ${studentId} removido da plataforma pelo professor.`
+      });
+
       res.json({ success: true, message: 'Aluno removido do Firestore com sucesso.' });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
+  // Obter turmas do professor
+  app.get('/api/teacher/classes', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const classesQ = query(collection(db, 'classes'), where('teacherId', '==', req.user!.userId));
+      const snap = await getDocs(classesQ);
+      const classes = snap.docs.map(d => d.data());
+      res.json({ classes });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Criar nova turma
+  app.post('/api/teacher/classes/create', requireAuth, requireTeacher, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { name, schoolYear } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: 'Nome da turma é obrigatório.' });
+      }
+
+      const classId = `turma-${name.toLowerCase().replace(/[^a-z0-9]/g, '')}_${Date.now().toString(36)}`;
+      const newClass = {
+        id: classId,
+        name: name.trim(),
+        schoolYear: schoolYear || '2026/2027',
+        teacherId: req.user!.userId,
+        rankingVisible: true,
+        createdAt: new Date().toISOString()
+      };
+
+      await setDoc(doc(db, 'classes', classId), newClass);
+
+      await setDoc(doc(db, 'auditLogs', `log_${Date.now()}`), {
+        id: `log_${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        action: 'CLASS_CREATED',
+        actorId: req.user!.userId,
+        details: `Nova turma ${name} criada pelo professor.`
+      });
+
+      res.json({ success: true, class: newClass });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Ranking geral
   app.get('/api/ranking', async (_req, res) => {
     try {
       const snap = await getDocs(collection(db, 'users'));
@@ -670,7 +1045,20 @@ async function startServer() {
     }
   });
 
-  app.get('/api/audit-logs', async (_req, res) => {
+  // Audit Logs (Restricted to Teacher)
+  app.get('/api/teacher/audit-logs', requireAuth, requireTeacher, async (_req: AuthenticatedRequest, res: Response) => {
+    try {
+      const q = query(collection(db, 'auditLogs'), limit(50));
+      const snap = await getDocs(q);
+      const logs = snap.docs.map(d => d.data());
+      res.json({ logs });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Legacy route redirect/fallback
+  app.get('/api/audit-logs', requireAuth, requireTeacher, async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const q = query(collection(db, 'auditLogs'), limit(50));
       const snap = await getDocs(q);

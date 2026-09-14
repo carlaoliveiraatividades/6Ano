@@ -71,10 +71,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (username: string, chosenRole: UserRole = 'student'): Promise<boolean> => {
     setIsLoading(true);
-    let targetUserId = 'aluno-alex';
-    if (chosenRole === 'teacher') targetUserId = 'prof-carla';
-    else if (username && username.trim() !== '') {
-      targetUserId = username.trim();
+    let targetUserId = username && username.trim() !== '' ? username.trim() : 'aluno-alex';
+
+    try {
+      if (chosenRole === 'student') {
+        const res = await fetch('/api/auth/student-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier: targetUserId })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            await fetchUserFromFirestore(data.user.id);
+            localStorage.removeItem('missao_tic_logged_out');
+            localStorage.setItem('missao_tic_user_id', data.user.id);
+            setIsLoading(false);
+            return true;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[AuthContext] Session login error:', e);
     }
 
     const success = await fetchUserFromFirestore(targetUserId);
@@ -88,14 +106,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
-  const loginTeacher = async (password: string): Promise<{ success: boolean; error?: string }> => {
+  const loginTeacher = async (password: string, identifier: string = 'imaginebycarla2023@gmail.com'): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
     try {
       const res = await fetch('/api/auth/teacher-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: 'imaginebycarla2023@gmail.com',
+          email: identifier,
           password
         })
       });
@@ -103,7 +121,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await res.json();
       if (!res.ok || !data.success) {
         setIsLoading(false);
-        return { success: false, error: data.error || 'Palavra-passe incorreta para a Prof.ª Carla.' };
+        return { success: false, error: data.error || 'Credenciais inválidas para o professor.' };
       }
 
       setUser({
@@ -115,7 +133,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         claimedWeeklyChallenges: []
       });
       localStorage.removeItem('missao_tic_logged_out');
-      localStorage.setItem('missao_tic_user_id', 'prof-carla');
+      localStorage.setItem('missao_tic_user_id', data.teacher.id);
       setIsLoading(false);
       return { success: true };
     } catch (err: any) {
@@ -141,14 +159,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(false);
         return {
           success: false,
-          error: 'Por favor, insere a palavra-passe da Prof.ª Carla.'
+          error: 'Por favor, insere a palavra-passe do professor.'
         };
       }
-      const res = await loginTeacher(password);
+      const res = await loginTeacher(password, identifier.trim());
       if (res.success) {
         return { success: true, role: 'teacher' };
       }
-      return { success: false, error: res.error || 'Palavra-passe incorreta para a Prof.ª Carla.' };
+      return { success: false, error: res.error || 'Palavra-passe incorreta para o docente.' };
     }
 
     // Student login
@@ -182,6 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     localStorage.removeItem('missao_tic_user_id');
     localStorage.setItem('missao_tic_logged_out', 'true');
     setUser(null);
