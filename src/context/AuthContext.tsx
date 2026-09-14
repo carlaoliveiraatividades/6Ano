@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, UserRole } from '../types';
-import { DEMO_STUDENT, DEMO_TEACHER, DEMO_ADMIN } from '../data/initialData';
+import { DEMO_STUDENT, DEMO_TEACHER } from '../data/initialData';
 
 interface AuthContextType {
   user: User | null;
@@ -73,7 +73,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     let targetUserId = 'aluno-alex';
     if (chosenRole === 'teacher') targetUserId = 'prof-carla';
-    else if (chosenRole === 'admin') targetUserId = 'admin-1';
     else if (username && username.trim() !== '') {
       targetUserId = username.trim();
     }
@@ -81,7 +80,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const success = await fetchUserFromFirestore(targetUserId);
     if (!success) {
       if (chosenRole === 'teacher') setUser(DEMO_TEACHER);
-      else if (chosenRole === 'admin') setUser(DEMO_ADMIN);
       else setUser({ ...DEMO_STUDENT, id: targetUserId, name: username || 'Alex Ramos' });
     }
     localStorage.removeItem('missao_tic_logged_out');
@@ -153,12 +151,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: res.error || 'Palavra-passe incorreta para a Prof.ª Carla.' };
     }
 
-    // Admin check
-    if (cleanId === 'admin' || cleanId === 'admin.tic' || cleanId === 'admin-1') {
-      await login('admin-1', 'admin');
-      return { success: true, role: 'admin' };
-    }
-
     // Student login
     let targetStudentId = identifier.trim();
     const studentMap: Record<string, string> = {
@@ -199,12 +191,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     let targetId = 'aluno-alex';
     if (targetRole === 'teacher') targetId = 'prof-carla';
-    if (targetRole === 'admin') targetId = 'admin-1';
 
     const ok = await fetchUserFromFirestore(targetId);
     if (!ok) {
       if (targetRole === 'teacher') setUser(DEMO_TEACHER);
-      else if (targetRole === 'admin') setUser(DEMO_ADMIN);
       else setUser(DEMO_STUDENT);
     }
     localStorage.removeItem('missao_tic_logged_out');

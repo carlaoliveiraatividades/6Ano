@@ -6,7 +6,7 @@ import { BADGES } from '../data/initialData';
 import { DAILY_TIPS, DAILY_QUOTES } from '../data/dailyContent';
 import { WEEKLY_CHALLENGES } from '../data/weeklyChallenges';
 
-export type MainView = 'dashboard' | 'worlds' | 'world-detail' | 'challenges' | 'achievements' | 'profile' | 'teacher' | 'grand-mission' | 'ranking' | 'admin';
+export type MainView = 'dashboard' | 'worlds' | 'world-detail' | 'challenges' | 'achievements' | 'profile' | 'teacher' | 'grand-mission' | 'ranking';
 
 interface ToastInfo {
   id: string;

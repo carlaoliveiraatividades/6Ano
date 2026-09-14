@@ -24,8 +24,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({ avatarId, className = ''
     ines: { bg: 'from-purple-400 to-indigo-600', ring: 'ring-purple-400', emoji: '👩‍🎨', initial: 'I', badgeColor: 'bg-purple-600' },
     miguel: { bg: 'from-orange-400 to-red-500', ring: 'ring-orange-400', emoji: '🧑‍🎤', initial: 'M', badgeColor: 'bg-orange-600' },
     sofia: { bg: 'from-teal-400 to-emerald-600', ring: 'ring-teal-400', emoji: '👧', initial: 'S', badgeColor: 'bg-teal-600' },
-    'teacher-helena': { bg: 'from-indigo-500 to-purple-700', ring: 'ring-indigo-400', emoji: '👩‍🏫', initial: 'H', badgeColor: 'bg-indigo-700' },
-    admin: { bg: 'from-slate-700 to-slate-900', ring: 'ring-slate-400', emoji: '⚡', initial: 'AD', badgeColor: 'bg-slate-800' }
+    'teacher-helena': { bg: 'from-indigo-500 to-purple-700', ring: 'ring-indigo-400', emoji: '👩‍🏫', initial: 'H', badgeColor: 'bg-indigo-700' }
   };
 
   const profile = profiles[avatarId] || profiles.alex;

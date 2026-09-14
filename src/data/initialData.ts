@@ -165,24 +165,6 @@ export const DEMO_TEACHER: User = {
   createdAt: '2026-09-01'
 };
 
-export const DEMO_ADMIN: User = {
-  id: 'admin-1',
-  username: 'admin.tic',
-  name: 'Administrador TIC',
-  role: 'admin',
-  avatar: 'admin',
-  xp: 5000,
-  level: 8,
-  levelTitle: 'Mestre da Missão TIC',
-  completedActivities: [],
-  completedSimulators: [],
-  completedMissions: [],
-  completedAssessments: {},
-  badges: ['badge-guardiao', 'badge-detetive', 'badge-criador', 'badge-engenheiro', 'badge-ia', 'badge-mestre'],
-  claimedWeeklyChallenges: [],
-  createdAt: '2026-09-01'
-};
-
 export const DEMO_CLASS_STUDENTS: StudentProgressSummary[] = [
   {
     userId: 'aluno-leonor',

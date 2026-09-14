@@ -14,7 +14,6 @@ import { ChallengesListView } from './views/ChallengesListView';
 import { AchievementsView } from './views/AchievementsView';
 import { RankingView } from './views/RankingView';
 import { TeacherDashboardView } from './views/TeacherDashboardView';
-import { AdminView } from './views/AdminView';
 
 // Modals
 import { WeeklyChallengeModal } from './components/common/WeeklyChallengeModal';
@@ -93,9 +92,7 @@ const AppContent: React.FC = () => {
       case 'ranking':
         return <RankingView />;
       case 'teacher':
-        return <TeacherDashboardView />;
-      case 'admin':
-        return <AdminView />;
+        return user.role === 'teacher' ? <TeacherDashboardView /> : <DashboardView />;
       default:
         return <DashboardView />;
     }

@@ -143,13 +143,6 @@ export const LoginView: React.FC = () => {
             type: 'success'
           });
           setCurrentView('teacher');
-        } else if (res.role === 'admin') {
-          addToast({
-            title: 'Modo Administrador TIC',
-            message: 'Acesso às configurações técnicas do sistema.',
-            type: 'info'
-          });
-          setCurrentView('admin');
         } else {
           addToast({
             title: 'Sessão Iniciada!',
@@ -204,18 +197,6 @@ export const LoginView: React.FC = () => {
         setError(res.error || 'Erro ao entrar como aluno.');
       }
     }
-  };
-
-  const handleAdminLogin = async () => {
-    setLoading(true);
-    await switchDemoUser('admin');
-    setLoading(false);
-    addToast({
-      title: 'Modo Administrador TIC',
-      message: 'Acesso às configurações técnicas do sistema.',
-      type: 'info'
-    });
-    setCurrentView('admin');
   };
 
   return (
@@ -397,18 +378,14 @@ export const LoginView: React.FC = () => {
 
       </div>
 
-      {/* Footer Discreet Link for Admin and Copyright */}
+      {/* Footer Discreet Link and Copyright */}
       <div className="max-w-4xl w-full mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400 pt-4 border-t border-slate-800/60">
         <div>
           Missão TIC • Disciplina de TIC do 6.º Ano de Escolaridade • Portugal
         </div>
-
-        <button
-          onClick={handleAdminLogin}
-          className="text-slate-400 hover:text-slate-200 transition-colors text-[11px] hover:underline cursor-pointer"
-        >
-          Acesso Técnico (Administrador TIC)
-        </button>
+        <div className="text-[11px] text-slate-400">
+          Prof.ª Carla • Turma 6.º A
+        </div>
       </div>
     </div>
   );

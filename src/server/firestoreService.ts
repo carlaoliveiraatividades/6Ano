@@ -31,7 +31,7 @@ export interface ServerUser {
   username: string;
   email?: string;
   name: string;
-  role: 'student' | 'teacher' | 'admin';
+  role: 'student' | 'teacher';
   avatar: string;
   classId?: string;
   className?: string;
@@ -242,19 +242,6 @@ export async function initializeAndSeedFirestore() {
         classId: 'turma-6a',
         className: '6.º Ano — Turma A',
         xp: 2500,
-        level: 8,
-        levelTitle: 'Mestre da Missão TIC',
-        badges: ['badge-guardiao', 'badge-detetive', 'badge-criador', 'badge-engenheiro', 'badge-ia', 'badge-mestre'],
-        createdAt: '2026-09-01T08:00:00Z',
-        isDemo: true
-      },
-      {
-        id: 'admin-1',
-        username: 'admin.tic',
-        name: 'Administrador TIC',
-        role: 'admin',
-        avatar: 'admin',
-        xp: 5000,
         level: 8,
         levelTitle: 'Mestre da Missão TIC',
         badges: ['badge-guardiao', 'badge-detetive', 'badge-criador', 'badge-engenheiro', 'badge-ia', 'badge-mestre'],
@@ -799,7 +786,7 @@ export async function serverCreateStudent(name: string, username: string, classI
     id: `log_${Date.now()}`,
     timestamp: new Date().toISOString(),
     action: 'STUDENT_CREATED',
-    actorId: 'admin_or_teacher',
+    actorId: 'teacher',
     details: `Novo aluno registado no Firestore: ${name} (${username}) na turma ${classId}.`
   });
 

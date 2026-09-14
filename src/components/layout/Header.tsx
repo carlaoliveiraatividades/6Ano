@@ -99,7 +99,7 @@ export const Header: React.FC = () => {
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
             <span>
-              {role === 'student' ? 'Aluno (Alex)' : role === 'teacher' ? 'Prof.ª Carla' : 'Admin'}
+              {role === 'teacher' ? 'Prof.ª Carla (Docente)' : 'Aluno (Alex)'}
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
           </button>
@@ -143,19 +143,6 @@ export const Header: React.FC = () => {
               >
                 <KeyRound className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Validar Palavra-passe (carlamso)</span>
-              </button>
-
-              <div className="my-1 border-t border-slate-100" />
-
-              <button
-                onClick={() => {
-                  switchDemoUser('admin');
-                  setShowRoleMenu(false);
-                }}
-                className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-100 text-slate-700 font-medium flex items-center justify-between"
-              >
-                <span>Administrador TIC</span>
-                {role === 'admin' && <span className="text-slate-900 font-bold">✓</span>}
               </button>
             </div>
           )}
