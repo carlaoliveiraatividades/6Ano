@@ -27,13 +27,15 @@ export interface AssessmentResult {
   newlyUnlockedWorld: string | null;
 }
 
+export type WorldStageTab = 'descobre' | 'experimenta' | 'desafio' | 'missao-real' | 'avaliacao' | 'recompensa' | 'aprende' | 'resolve' | 'cria';
+
 interface AppContextType {
   currentView: MainView;
   setCurrentView: (view: MainView) => void;
   selectedWorldId: string | null;
-  openWorld: (worldId: string, initialTab?: 'aprende' | 'experimenta' | 'resolve' | 'cria') => void;
-  activeWorldTab: 'aprende' | 'experimenta' | 'resolve' | 'cria';
-  setActiveWorldTab: (tab: 'aprende' | 'experimenta' | 'resolve' | 'cria') => void;
+  openWorld: (worldId: string, initialTab?: WorldStageTab) => void;
+  activeWorldTab: WorldStageTab;
+  setActiveWorldTab: (tab: WorldStageTab) => void;
   
   // Modals
   activeWeeklyChallenge: WeeklyChallenge | null;
@@ -72,7 +74,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const { user, updateUserProgress, refreshUser } = useAuth();
   const [currentView, setCurrentView] = useState<MainView>('dashboard');
   const [selectedWorldId, setSelectedWorldId] = useState<string | null>('mundo-1');
-  const [activeWorldTab, setActiveWorldTab] = useState<'aprende' | 'experimenta' | 'resolve' | 'cria'>('aprende');
+  const [activeWorldTab, setActiveWorldTab] = useState<WorldStageTab>('descobre');
 
   // Modals state
   const [activeWeeklyChallenge, setActiveWeeklyChallenge] = useState<WeeklyChallenge | null>(null);
@@ -317,7 +319,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   };
 
-  const openWorld = (worldId: string, initialTab: 'aprende' | 'experimenta' | 'resolve' | 'cria' = 'aprende') => {
+  const openWorld = (worldId: string, initialTab: WorldStageTab = 'descobre') => {
     setSelectedWorldId(worldId);
     setActiveWorldTab(initialTab);
     setCurrentView('world-detail');

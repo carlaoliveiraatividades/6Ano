@@ -22,7 +22,7 @@ export const RealMissionModal: React.FC<RealMissionModalProps> = ({ worldId, onC
 
   const handleSubmit = () => {
     if (content.trim().length > 20) {
-      completeMission(mission.id, 50, content);
+      completeMission(worldId, content);
       setSaved(true);
     }
   };

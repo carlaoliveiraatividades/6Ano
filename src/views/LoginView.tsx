@@ -41,7 +41,7 @@ export const LoginView: React.FC = () => {
   const { unifiedLogin, registerStudent, loginGuest } = useAuth();
   const { setCurrentView, addToast } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
+  const [activeTab, setActiveTab] = useState<'login' | 'register' | 'visitor'>('login');
 
   // Login form state
   const [identifier, setIdentifier] = useState('');
@@ -183,10 +183,23 @@ export const LoginView: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-medium">
+        <div className="flex items-center gap-2.5">
+          {/* Top Header Quick Visitor Button */}
+          <button
+            id="top-btn-visitor-access"
+            type="button"
+            onClick={handleGuestAccess}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 text-xs font-extrabold transition-all cursor-pointer shadow-sm hover:scale-105"
+            title="Aceder imediatamente sem registo"
+          >
+            <Eye className="w-3.5 h-3.5 text-amber-400" />
+            <span>Acesso a Visitantes</span>
+          </button>
+
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-medium">
             <Database className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Firestore Conectado</span>
+            <span>Firestore</span>
           </span>
         </div>
       </div>
@@ -194,6 +207,39 @@ export const LoginView: React.FC = () => {
       {/* Main Single Card with Tabs */}
       <div className="max-w-2xl w-full mx-auto my-6 sm:my-8 bg-slate-900/90 border border-slate-800/90 rounded-3xl p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
         
+        {/* Quick Visitor Highlight Banner at Top of Card */}
+        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-amber-950/60 via-indigo-950/60 to-blue-950/60 border border-amber-500/40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-3 text-left">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300 shrink-0 text-base">
+              🌟
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-extrabold text-amber-200 uppercase tracking-wider">
+                  Acesso Rápido a Visitantes
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-amber-400/20 text-amber-300 text-[10px] font-bold">
+                  1 Clique
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                Queres apenas conhecer a plataforma? Explora os 5 Mundos e simuladores sem criar conta.
+              </p>
+            </div>
+          </div>
+
+          <button
+            id="hero-btn-visitor-access"
+            type="button"
+            onClick={handleGuestAccess}
+            disabled={loading}
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95 shrink-0"
+          >
+            <Compass className="w-4 h-4 text-slate-950" />
+            <span>Entrar como Visitante</span>
+          </button>
+        </div>
+
         {/* Intro */}
         <div className="text-center max-w-xl mx-auto mb-6">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-semibold mb-3">
@@ -201,17 +247,19 @@ export const LoginView: React.FC = () => {
             <span>Portal Escolar e Educativo</span>
           </div>
           <h1 className="font-display font-black text-2xl sm:text-3xl text-white tracking-tight">
-            {activeTab === 'login' ? 'Entrar na Missão TIC' : 'Criar Conta de Aluno'}
+            {activeTab === 'login' ? 'Entrar na Missão TIC' : activeTab === 'register' ? 'Criar Conta de Aluno' : 'Acesso para Visitantes'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-2">
             {activeTab === 'login' 
               ? 'Inicia sessão com o teu utilizador de aluno ou credenciais da docente.' 
-              : 'Regista a tua conta pessoal de aluno para guardares o teu progresso, XP e medalhas.'}
+              : activeTab === 'register'
+              ? 'Regista a tua conta pessoal de aluno para guardares o teu progresso, XP e medalhas.'
+              : 'Exploração livre de todos os conteúdos e ferramentas pedagógicas sem necessidade de registo.'}
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800 max-w-md mx-auto mb-6">
+        {/* 3-Tab Switcher */}
+        <div className="grid grid-cols-3 bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800 max-w-lg mx-auto mb-6 gap-1">
           <button
             id="tab-btn-login"
             type="button"
@@ -219,14 +267,14 @@ export const LoginView: React.FC = () => {
               setActiveTab('login');
               setError(null);
             }}
-            className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+            className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === 'login'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-900/50'
             }`}
           >
-            <LogIn className="w-4 h-4" />
-            <span>Já tenho conta</span>
+            <LogIn className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Entrar</span>
           </button>
 
           <button
@@ -236,14 +284,31 @@ export const LoginView: React.FC = () => {
               setActiveTab('register');
               setError(null);
             }}
-            className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+            className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === 'register'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-900/50'
             }`}
           >
-            <UserPlus className="w-4 h-4" />
-            <span>Criar Conta de Aluno</span>
+            <UserPlus className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Criar Conta</span>
+          </button>
+
+          <button
+            id="tab-btn-visitor"
+            type="button"
+            onClick={() => {
+              setActiveTab('visitor');
+              setError(null);
+            }}
+            className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'visitor'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/30'
+                : 'text-amber-300/80 hover:text-amber-200 hover:bg-slate-900/50'
+            }`}
+          >
+            <Eye className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Visitante</span>
           </button>
         </div>
 
@@ -448,6 +513,54 @@ export const LoginView: React.FC = () => {
               )}
             </button>
           </form>
+        )}
+
+        {/* TAB 3: VISITOR ACCESS VIEW */}
+        {activeTab === 'visitor' && (
+          <div className="max-w-md mx-auto space-y-5 animate-in fade-in">
+            <div className="p-5 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-left space-y-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-amber-300">
+                  <Compass className="w-4 h-4" />
+                </div>
+                <h3 className="text-sm font-bold text-white">
+                  O que podes fazer no Modo Visitante?
+                </h3>
+              </div>
+
+              <ul className="text-xs text-slate-300 space-y-2 pl-1">
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-400 font-bold">✓</span>
+                  <span><strong>Todos os 5 Mundos Desbloqueados:</strong> Guardião, Detetive, Laboratório, Oficina e Cidadão Digital.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-400 font-bold">✓</span>
+                  <span><strong>Simuladores Interativos:</strong> Testador de Passwords, Simulador de Phishing, Pesquisa Booleana, Construtor de Fórmulas e mais.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-400 font-bold">✓</span>
+                  <span><strong>Desafios & Quizzes:</strong> Experimenta a progressão pedagógica sem necessitar de criar conta.</span>
+                </li>
+              </ul>
+            </div>
+
+            <button
+              id="btn-visitor-tab-start"
+              type="button"
+              onClick={handleGuestAccess}
+              disabled={loading}
+              className="w-full py-4 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:brightness-110 active:scale-95 disabled:opacity-50 text-slate-950 rounded-xl font-black text-sm shadow-xl shadow-amber-500/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <span>A carregar modo visitante...</span>
+              ) : (
+                <>
+                  <Compass className="w-5 h-5 text-slate-950" />
+                  <span>Entrar Agora como Visitante 🚀</span>
+                </>
+              )}
+            </button>
+          </div>
         )}
 
         {/* Divider for Visitor Mode */}

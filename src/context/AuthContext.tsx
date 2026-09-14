@@ -23,7 +23,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(DEMO_STUDENT);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Fetch verified user from Firestore on initial mount
@@ -66,10 +66,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
       return;
     }
-    const savedUserId = localStorage.getItem('missao_tic_user_id') || 'aluno-alex';
-    fetchUserFromFirestore(savedUserId).finally(() => {
+    const savedUserId = localStorage.getItem('missao_tic_user_id');
+    if (savedUserId) {
+      if (savedUserId.startsWith('visitante')) {
+        loginGuest().finally(() => setIsLoading(false));
+      } else {
+        fetchUserFromFirestore(savedUserId).finally(() => {
+          setIsLoading(false);
+        });
+      }
+    } else {
+      // Default to null so user sees the initial landing/login page with Visitor button
+      setUser(null);
       setIsLoading(false);
-    });
+    }
   }, [fetchUserFromFirestore]);
 
   const login = async (username: string, chosenRole: UserRole = 'student'): Promise<boolean> => {
@@ -211,6 +221,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const switchDemoUser = async (targetRole: UserRole) => {
     setIsLoading(true);
+    if (targetRole === 'visitor') {
+      await loginGuest();
+      setIsLoading(false);
+      return;
+    }
+
     let targetId = 'aluno-alex';
     if (targetRole === 'teacher') targetId = 'prof-carla';
 

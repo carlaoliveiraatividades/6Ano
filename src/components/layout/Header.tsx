@@ -115,12 +115,28 @@ export const Header: React.FC = () => {
               </div>
               <button
                 onClick={() => {
+                  switchDemoUser('visitor');
+                  setShowRoleMenu(false);
+                }}
+                className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-amber-50 text-slate-700 hover:text-amber-800 font-medium flex items-center justify-between"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                  <span>Modo Visitante (Convidado)</span>
+                </div>
+                {role === 'visitor' && <span className="text-amber-600 font-bold">✓</span>}
+              </button>
+              <button
+                onClick={() => {
                   switchDemoUser('student');
                   setShowRoleMenu(false);
                 }}
                 className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-medium flex items-center justify-between"
               >
-                <span>Aluno Demo (Alex)</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span>Aluno Demo (Alex)</span>
+                </div>
                 {role === 'student' && <span className="text-blue-600 font-bold">✓</span>}
               </button>
               <button

@@ -659,6 +659,8 @@ export async function serverSubmitAssessment(
 
 /**
  * Server-authoritative Real Mission Submission
+ * Validates authenticated student identity, checks world access, records submission in Firestore,
+ * updates student progress, and awards XP with server-side validation.
  */
 export async function serverSubmitMission(
   userId: string,
@@ -666,12 +668,36 @@ export async function serverSubmitMission(
   submissionText: string,
   evidenceUrl?: string
 ) {
+  // 1. Verify User Exists
+  const userRef = doc(db, 'users', userId);
+  const uSnap = await getDoc(userRef);
+  if (!uSnap.exists()) {
+    throw new Error('Utilizador não encontrado na base de dados.');
+  }
+
+  // 2. Validate World Exists & Student Access
+  const spRef = doc(db, 'studentProgress', userId);
+  const spSnap = await getDoc(spRef);
+  if (spSnap.exists()) {
+    const p = spSnap.data() as ServerStudentProgress;
+    const unlocked = p.unlockedWorlds || ['mundo-1', 'mundo-2'];
+    if (!unlocked.includes(worldId) && !userId.startsWith('visitante') && uSnap.data().role !== 'teacher') {
+      // Check if world is published/unlocked for all
+      const wRef = doc(db, 'worlds', worldId);
+      const wSnap = await getDoc(wRef);
+      if (!wSnap.exists() || (!wSnap.data().unlockedForAll && wSnap.data().isPublished === false)) {
+        throw new Error(`Não tens acesso à Missão Real de ${worldId}.`);
+      }
+    }
+  }
+
+  // 3. Persist Mission Submission to Firestore
   const missionId = `mission_${Date.now()}_${userId}`;
   await setDoc(doc(db, 'missions', missionId), {
     id: missionId,
     userId,
     worldId,
-    submissionText,
+    submissionText: submissionText.trim(),
     evidenceUrl: evidenceUrl || null,
     submittedAt: new Date().toISOString(),
     status: 'submitted',
@@ -679,10 +705,10 @@ export async function serverSubmitMission(
     grade: null
   });
 
+  // 4. Server-Authoritative XP Award (+50 XP)
   const xpResult = await serverAwardXp(userId, 50, `Missão Real submetida (${worldId})`, 'mission');
 
-  const spRef = doc(db, 'studentProgress', userId);
-  const spSnap = await getDoc(spRef);
+  // 5. Update Student Progress in Firestore
   if (spSnap.exists()) {
     const p = spSnap.data() as ServerStudentProgress;
     if (!p.completedMissions.includes(worldId)) {
