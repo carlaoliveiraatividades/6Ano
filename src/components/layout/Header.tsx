@@ -51,7 +51,11 @@ export const Header: React.FC = () => {
             </span>
           </div>
           <p className="text-xs md:text-sm text-slate-500 font-medium">
-            {role === 'teacher' ? 'Painel exclusivo da docente (imaginebycarla2023@gmail.com)' : 'Pronto para mais uma missão?'}
+            {role === 'teacher' 
+              ? 'Painel exclusivo da docente (imaginebycarla2023@gmail.com)' 
+              : role === 'visitor'
+              ? 'Modo Convidado • Explora livremente os 5 Mundos e Simuladores'
+              : 'Pronto para mais uma missão?'}
           </p>
 
           {/* Level and XP Progress bar */}
@@ -95,11 +99,11 @@ export const Header: React.FC = () => {
         <div className="relative">
           <button
             onClick={() => setShowRoleMenu(!showRoleMenu)}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors border border-slate-200/80"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors border border-slate-200/80 cursor-pointer"
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span className={`w-2 h-2 rounded-full ${role === 'teacher' ? 'bg-indigo-500' : role === 'visitor' ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
             <span>
-              {role === 'teacher' ? 'Prof.ª Carla (Docente)' : 'Aluno (Alex)'}
+              {role === 'teacher' ? 'Prof.ª Carla' : role === 'visitor' ? 'Visitante' : (user?.name || 'Aluno')}
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
           </button>

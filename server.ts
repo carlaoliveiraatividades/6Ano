@@ -13,6 +13,7 @@ import {
   serverSubmitMission,
   serverClaimWeeklyChallenge,
   serverCreateStudent,
+  serverRegisterStudent,
   serverTeacherLogin,
   serverStudentLogin,
   serverGetTeacherClassStudents,
@@ -197,6 +198,104 @@ async function startServer() {
       });
     } catch (err: any) {
       res.status(401).json({ error: err.message || 'Aluno não encontrado.' });
+    }
+  });
+
+  // Student Self-Registration (Aluno cria a sua própria conta)
+  app.post('/api/auth/student-register', authLimiter, async (req: Request, res: Response) => {
+    try {
+      const { name, username, avatar, classId, className } = req.body;
+      if (!name || !username) {
+        return res.status(400).json({ error: 'Nome e nome de utilizador são obrigatórios.' });
+      }
+
+      const newStudent = await serverRegisterStudent(
+        name,
+        username,
+        avatar || 'alex',
+        classId || 'turma-6a',
+        className || '6.º Ano — Turma A'
+      );
+
+      const session = createSession({
+        id: newStudent.id,
+        username: newStudent.username,
+        name: newStudent.name,
+        role: 'student',
+        classId: newStudent.classId
+      });
+
+      res.cookie('missao_tic_session', session.id, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000
+      });
+
+      res.json({
+        success: true,
+        user: {
+          id: newStudent.id,
+          username: newStudent.username,
+          name: newStudent.name,
+          role: 'student',
+          avatar: newStudent.avatar,
+          classId: newStudent.classId,
+          className: newStudent.className,
+          xp: newStudent.xp,
+          level: newStudent.level,
+          levelTitle: newStudent.levelTitle,
+          badges: newStudent.badges
+        },
+        sessionId: session.id
+      });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || 'Erro ao criar conta de aluno.' });
+    }
+  });
+
+  // Guest/Visitor Login (Página visível para visitantes explorarem)
+  app.post('/api/auth/guest-login', authLimiter, async (_req: Request, res: Response) => {
+    try {
+      const guestId = `visitante-${Math.random().toString(36).substring(2, 7)}`;
+      const guestUser: ServerUser = {
+        id: guestId,
+        username: 'visitante',
+        name: 'Explorador Convidado',
+        role: 'student',
+        avatar: 'alex',
+        classId: 'visitantes',
+        className: 'Visitante / Convidado',
+        xp: 150,
+        level: 1,
+        levelTitle: 'Explorador Convidado',
+        badges: ['badge-guardiao'],
+        createdAt: new Date().toISOString()
+      };
+
+      const session = createSession({
+        id: guestUser.id,
+        username: guestUser.username,
+        name: guestUser.name,
+        role: 'student',
+        classId: guestUser.classId
+      });
+
+      res.cookie('missao_tic_session', session.id, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 4 * 60 * 60 * 1000 // 4h
+      });
+
+      res.json({
+        success: true,
+        user: guestUser,
+        sessionId: session.id,
+        isGuest: true
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Erro ao entrar como visitante.' });
     }
   });
 

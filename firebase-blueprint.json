@@ -1,0 +1,295 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Utilizador da plataforma Missão TIC (aluno ou professor)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "teacher"] },
+        "avatar": { "type": "string" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "xp": { "type": "number" },
+        "level": { "type": "number" },
+        "levelTitle": { "type": "string" },
+        "badges": { "type": "array" },
+        "email": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "username", "name", "role", "xp", "level"]
+    },
+    "UserCredential": {
+      "title": "UserCredential",
+      "description": "Credenciais seguras (salt e hash de password) isoladas",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "salt": { "type": "string" },
+        "hash": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "salt", "hash"]
+    },
+    "StudentProgress": {
+      "title": "StudentProgress",
+      "description": "Registo de progresso pedagógico e curricular do aluno",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "completedActivities": { "type": "array" },
+        "completedSimulators": { "type": "array" },
+        "completedMissions": { "type": "array" },
+        "completedAssessments": { "type": "object" },
+        "claimedWeeklyChallenges": { "type": "array" },
+        "unlockedWorlds": { "type": "array" },
+        "world1Progress": { "type": "number" },
+        "world2Progress": { "type": "number" },
+        "world3Progress": { "type": "number" },
+        "world4Progress": { "type": "number" },
+        "world5Progress": { "type": "number" },
+        "grandMissionCompleted": { "type": "boolean" },
+        "needsHelp": { "type": "boolean" },
+        "helpReason": { "type": "string" },
+        "lastActive": { "type": "string" }
+      },
+      "required": ["userId"]
+    },
+    "XpTransaction": {
+      "title": "XpTransaction",
+      "description": "Registo de transação de XP atribuído pelo servidor",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "reason": { "type": "string" },
+        "source": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "userId", "amount", "source", "timestamp"]
+    },
+    "AssessmentAttempt": {
+      "title": "AssessmentAttempt",
+      "description": "Registo de tentativa de teste sumativo avaliado no servidor",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "worldId": { "type": "string" },
+        "score": { "type": "number" },
+        "totalQuestions": { "type": "number" },
+        "percentage": { "type": "number" },
+        "passed": { "type": "boolean" },
+        "awardedXp": { "type": "number" },
+        "submittedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "worldId", "score", "passed"]
+    },
+    "StudentBadge": {
+      "title": "StudentBadge",
+      "description": "Medalha atribuída a um aluno",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "badgeId": { "type": "string" },
+        "unlockedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "badgeId", "unlockedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Registo de auditoria e segurança de eventos no servidor",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "action": { "type": "string" },
+        "actorId": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "action", "actorId"]
+    },
+    "Class": {
+      "title": "Class",
+      "description": "Turma letiva de 6.º ano",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "schoolYear": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "rankingVisible": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "teacherId"]
+    },
+    "ClassMember": {
+      "title": "ClassMember",
+      "description": "Associação de aluno a uma turma",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "classId": { "type": "string" },
+        "userId": { "type": "string" },
+        "joinedAt": { "type": "string" }
+      },
+      "required": ["id", "classId", "userId"]
+    },
+    "Mission": {
+      "title": "Mission",
+      "description": "Submissão de trabalho prático de mundo real",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "worldId": { "type": "string" },
+        "worldTitle": { "type": "string" },
+        "missionTitle": { "type": "string" },
+        "submissionText": { "type": "string" },
+        "evidenceUrl": { "type": "string" },
+        "submittedAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["submitted", "graded"] },
+        "grade": { "type": "string" },
+        "teacherFeedback": { "type": "string" },
+        "gradedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "worldId", "submissionText", "submittedAt"]
+    },
+    "World": {
+      "title": "World",
+      "description": "Mundo de aprendizagem curricular de TIC",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "number": { "type": "number" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "domain": { "type": "string" },
+        "description": { "type": "string" },
+        "badgeId": { "type": "string" },
+        "color": { "type": "string" },
+        "icon": { "type": "string" },
+        "bgGradient": { "type": "string" },
+        "sections": { "type": "object" },
+        "isPublished": { "type": "boolean" },
+        "unlockedForAll": { "type": "boolean" },
+        "teacherNotes": { "type": "string" }
+      },
+      "required": ["id", "number", "title", "domain"]
+    },
+    "Badge": {
+      "title": "Badge",
+      "description": "Definição de medalha / conquista curricular",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "domain": { "type": "string" },
+        "icon": { "type": "string" },
+        "category": { "type": "string" },
+        "color": { "type": "string" }
+      },
+      "required": ["id", "name", "domain"]
+    },
+    "WeeklyChallenge": {
+      "title": "WeeklyChallenge",
+      "description": "Desafio semanal interativo",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "world": { "type": "string" },
+        "question": { "type": "string" },
+        "options": { "type": "array" },
+        "correctIndex": { "type": "number" },
+        "explanation": { "type": "string" },
+        "xpReward": { "type": "number" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "title", "question", "correctIndex", "xpReward"]
+    },
+    "DailyContent": {
+      "title": "DailyContent",
+      "description": "Dicas e citações diárias de cidadania e segurança digital",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "author": { "type": "string" },
+        "authorRole": { "type": "string" },
+        "domain": { "type": "string" },
+        "icon": { "type": "string" }
+      },
+      "required": ["id", "text"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Perfis de utilizadores (alunos e professores)"
+    },
+    "/userCredentials/{userId}": {
+      "schema": "UserCredential",
+      "description": "Credenciais confidenciais (apenas acessíveis pelo backend)"
+    },
+    "/studentProgress/{userId}": {
+      "schema": "StudentProgress",
+      "description": "Progresso escolar e estado dos módulos dos alunos"
+    },
+    "/xpTransactions/{transactionId}": {
+      "schema": "XpTransaction",
+      "description": "Histórico imutável de transações de XP emitidas pelo servidor"
+    },
+    "/assessmentAttempts/{attemptId}": {
+      "schema": "AssessmentAttempt",
+      "description": "Tentativas e notas de testes sumativos"
+    },
+    "/studentBadges/{badgeAssignmentId}": {
+      "schema": "StudentBadge",
+      "description": "Medalhas desbloqueadas pelos alunos"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Logs de auditoria e segurança administrativa"
+    },
+    "/classes/{classId}": {
+      "schema": "Class",
+      "description": "Turmas geridas pelos professores"
+    },
+    "/classMembers/{memberId}": {
+      "schema": "ClassMember",
+      "description": "Associações entre turmas e alunos"
+    },
+    "/missions/{missionId}": {
+      "schema": "Mission",
+      "description": "Submissões de trabalhos práticos e avaliações docentes"
+    },
+    "/worlds/{worldId}": {
+      "schema": "World",
+      "description": "Conteúdo e configuração dos 5 Mundos de TIC"
+    },
+    "/badges/{badgeId}": {
+      "schema": "Badge",
+      "description": "Catálogo de insígnias e medalhas"
+    },
+    "/weeklyChallenges/{challengeId}": {
+      "schema": "WeeklyChallenge",
+      "description": "Desafios semanais de TIC"
+    },
+    "/dailyTips/{tipId}": {
+      "schema": "DailyContent",
+      "description": "Dicas diárias educativas"
+    },
+    "/dailyQuotes/{quoteId}": {
+      "schema": "DailyContent",
+      "description": "Citações diárias inspiradoras"
+    }
+  }
+}

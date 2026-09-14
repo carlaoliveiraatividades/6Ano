@@ -7,9 +7,12 @@ interface AuthContextType {
   role: UserRole;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isGuest?: boolean;
   login: (username: string, role?: UserRole) => Promise<boolean>;
   loginTeacher: (password: string) => Promise<{ success: boolean; error?: string }>;
   unifiedLogin: (identifier: string, password?: string) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
+  registerStudent: (name: string, username: string, avatar?: string, classId?: string, className?: string) => Promise<{ success: boolean; error?: string; user?: User }>;
+  loginGuest: () => Promise<{ success: boolean; error?: string; user?: User }>;
   logout: () => void;
   switchDemoUser: (role: UserRole) => Promise<void>;
   updateUserProgress: (updater: (prev: User) => User) => void;
@@ -251,6 +254,131 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return null;
   };
 
+  const registerStudent = async (
+    name: string,
+    username: string,
+    avatar: string = 'alex',
+    classId: string = 'turma-6a',
+    className: string = '6.º Ano — Turma A'
+  ): Promise<{ success: boolean; error?: string; user?: User }> => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/auth/student-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, username, avatar, classId, className })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setIsLoading(false);
+        return { success: false, error: data.error || 'Erro ao criar conta de aluno.' };
+      }
+
+      const newUser: User = {
+        ...data.user,
+        completedActivities: [],
+        completedSimulators: [],
+        completedMissions: [],
+        completedAssessments: {},
+        claimedWeeklyChallenges: [],
+        unlockedWorlds: ['mundo-1', 'mundo-2']
+      };
+
+      setUser(newUser);
+      localStorage.removeItem('missao_tic_logged_out');
+      localStorage.setItem('missao_tic_user_id', newUser.id);
+      setIsLoading(false);
+      return { success: true, user: newUser };
+    } catch (err: any) {
+      setIsLoading(false);
+      return { success: false, error: err.message || 'Erro de ligação ao servidor.' };
+    }
+  };
+
+  const loginGuest = async (): Promise<{ success: boolean; error?: string; user?: User }> => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/auth/guest-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setIsLoading(false);
+        // Fallback local guest
+        const fallbackGuest: User = {
+          id: `visitante_${Date.now()}`,
+          username: 'visitante',
+          name: 'Explorador Convidado',
+          role: 'visitor',
+          avatar: 'alex',
+          classId: 'visitantes',
+          className: 'Visitante / Convidado',
+          xp: 150,
+          level: 1,
+          levelTitle: 'Explorador Convidado',
+          badges: ['badge-guardiao'],
+          completedActivities: [],
+          completedSimulators: [],
+          completedMissions: [],
+          completedAssessments: {},
+          claimedWeeklyChallenges: [],
+          unlockedWorlds: ['mundo-1', 'mundo-2', 'mundo-3', 'mundo-4', 'mundo-5'],
+          createdAt: new Date().toISOString()
+        };
+        setUser(fallbackGuest);
+        localStorage.removeItem('missao_tic_logged_out');
+        localStorage.setItem('missao_tic_user_id', fallbackGuest.id);
+        return { success: true, user: fallbackGuest };
+      }
+
+      const guestUser: User = {
+        ...data.user,
+        role: 'visitor',
+        completedActivities: [],
+        completedSimulators: [],
+        completedMissions: [],
+        completedAssessments: {},
+        claimedWeeklyChallenges: [],
+        unlockedWorlds: ['mundo-1', 'mundo-2', 'mundo-3', 'mundo-4', 'mundo-5']
+      };
+
+      setUser(guestUser);
+      localStorage.removeItem('missao_tic_logged_out');
+      localStorage.setItem('missao_tic_user_id', guestUser.id);
+      setIsLoading(false);
+      return { success: true, user: guestUser };
+    } catch (err: any) {
+      setIsLoading(false);
+      const fallbackGuest: User = {
+        id: `visitante_${Date.now()}`,
+        username: 'visitante',
+        name: 'Explorador Convidado',
+        role: 'visitor',
+        avatar: 'alex',
+        classId: 'visitantes',
+        className: 'Visitante / Convidado',
+        xp: 150,
+        level: 1,
+        levelTitle: 'Explorador Convidado',
+        badges: ['badge-guardiao'],
+        completedActivities: [],
+        completedSimulators: [],
+        completedMissions: [],
+        completedAssessments: {},
+        claimedWeeklyChallenges: [],
+        unlockedWorlds: ['mundo-1', 'mundo-2', 'mundo-3', 'mundo-4', 'mundo-5'],
+        createdAt: new Date().toISOString()
+      };
+      setUser(fallbackGuest);
+      localStorage.removeItem('missao_tic_logged_out');
+      localStorage.setItem('missao_tic_user_id', fallbackGuest.id);
+      return { success: true, user: fallbackGuest };
+    }
+  };
+
   const role: UserRole = user?.role || 'student';
   const isAuthenticated = !!user;
 
@@ -261,9 +389,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role,
         isAuthenticated,
         isLoading,
+        isGuest: user?.role === 'visitor',
         login,
         loginTeacher,
         unifiedLogin,
+        registerStudent,
+        loginGuest,
         logout,
         switchDemoUser,
         updateUserProgress,

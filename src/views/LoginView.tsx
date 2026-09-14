@@ -9,112 +9,50 @@ import {
   Database,
   GraduationCap,
   KeyRound,
-  ShieldCheck
+  Compass,
+  UserPlus,
+  LogIn,
+  Eye,
+  School
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import { UserAvatar } from '../components/common/UserAvatar';
 
-interface ClassUser {
-  id: string;
-  name: string;
-  role: 'teacher' | 'student';
-  subtitle: string;
-  avatar: string;
-  xp?: number;
-  level?: number;
-  email?: string;
-}
+const AVATAR_OPTIONS = [
+  { id: 'alex', label: 'Explorador', emoji: '🧑‍🚀' },
+  { id: 'leonor', label: 'Cientista', emoji: '👧' },
+  { id: 'tiago', label: 'Programador', emoji: '👦' },
+  { id: 'beatriz', label: 'Investigadora', emoji: '👩‍🔬' },
+  { id: 'duarte', label: 'Gamer', emoji: '🧑‍💻' },
+  { id: 'ines', label: 'Criativa', emoji: '👩‍🎨' },
+  { id: 'miguel', label: 'Músico', emoji: '🧑‍🎤' },
+  { id: 'sofia', label: 'Detetive', emoji: '👧' }
+];
 
-const CLASS_PROFILES: ClassUser[] = [
-  { 
-    id: 'prof-carla', 
-    name: 'Prof.ª Carla', 
-    role: 'teacher', 
-    subtitle: 'Docente Titular de TIC', 
-    avatar: 'teacher-helena',
-    email: 'imaginebycarla2023@gmail.com'
-  },
-  { 
-    id: 'aluno-alex', 
-    name: 'Alex Ramos', 
-    role: 'student', 
-    subtitle: 'Aluno Demo • Nível 3', 
-    avatar: 'alex',
-    xp: 320,
-    level: 3
-  },
-  { 
-    id: 'aluno-leonor', 
-    name: 'Leonor Santos', 
-    role: 'student', 
-    subtitle: 'Aluna • Nível 5', 
-    avatar: 'leonor',
-    xp: 920,
-    level: 5
-  },
-  { 
-    id: 'aluno-tiago', 
-    name: 'Tiago Ferreira', 
-    role: 'student', 
-    subtitle: 'Aluno • Nível 5', 
-    avatar: 'tiago',
-    xp: 850,
-    level: 5
-  },
-  { 
-    id: 'aluno-beatriz', 
-    name: 'Beatriz Costa', 
-    role: 'student', 
-    subtitle: 'Aluna • Nível 3', 
-    avatar: 'beatriz',
-    xp: 290,
-    level: 3
-  },
-  { 
-    id: 'aluno-duarte', 
-    name: 'Duarte Lima', 
-    role: 'student', 
-    subtitle: 'Aluno • Nível 2', 
-    avatar: 'duarte',
-    xp: 210,
-    level: 2
-  },
-  { 
-    id: 'aluno-ines', 
-    name: 'Inês Mendes', 
-    role: 'student', 
-    subtitle: 'Aluna • Nível 2', 
-    avatar: 'ines',
-    xp: 180,
-    level: 2
-  },
-  { 
-    id: 'aluno-miguel', 
-    name: 'Miguel Rocha', 
-    role: 'student', 
-    subtitle: 'Aluno • Nível 2', 
-    avatar: 'miguel',
-    xp: 120,
-    level: 2
-  },
-  { 
-    id: 'aluno-sofia', 
-    name: 'Sofia Martins', 
-    role: 'student', 
-    subtitle: 'Aluna • Nível 1', 
-    avatar: 'sofia',
-    xp: 90,
-    level: 1
-  }
+const CLASS_OPTIONS = [
+  { id: 'turma-6a', name: 'Turma 6.º A' },
+  { id: 'turma-6b', name: 'Turma 6.º B' },
+  { id: 'turma-6c', name: 'Turma 6.º C' },
+  { id: 'turma-6d', name: 'Turma 6.º D' }
 ];
 
 export const LoginView: React.FC = () => {
-  const { unifiedLogin, switchDemoUser } = useAuth();
+  const { unifiedLogin, registerStudent, loginGuest } = useAuth();
   const { setCurrentView, addToast } = useApp();
 
+  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
+
+  // Login form state
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+
+  // Register form state
+  const [regName, setRegName] = useState('');
+  const [regUsername, setRegUsername] = useState('');
+  const [regAvatar, setRegAvatar] = useState('alex');
+  const [regClassId, setRegClassId] = useState('turma-6a');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -123,7 +61,8 @@ export const LoginView: React.FC = () => {
     identifier.toLowerCase().includes('prof') ||
     identifier.toLowerCase() === 'imaginebycarla2023@gmail.com';
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Handle Login
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim()) {
       setError('Por favor, escreve o teu nome, utilizador ou email.');
@@ -139,14 +78,14 @@ export const LoginView: React.FC = () => {
         if (res.role === 'teacher') {
           addToast({
             title: 'Bem-vinda, Prof.ª Carla!',
-            message: 'Painel da docente sincronizado com o Firestore.',
+            message: 'Painel da docente autenticado com segurança.',
             type: 'success'
           });
           setCurrentView('teacher');
         } else {
           addToast({
             title: 'Sessão Iniciada!',
-            message: `Bem-vindo à Missão TIC 6.º Ano.`,
+            message: `Bem-vindo de volta à Missão TIC 6.º Ano.`,
             type: 'success'
           });
           setCurrentView('dashboard');
@@ -161,41 +100,68 @@ export const LoginView: React.FC = () => {
     }
   };
 
-  // Quick 1-click login for any profile (teacher or student)
-  const handleQuickSelect = async (profile: ClassUser) => {
+  // Handle Register
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regName.trim() || regName.trim().length < 2) {
+      setError('Por favor, introduz o teu nome completo (mínimo 2 letras).');
+      return;
+    }
+    if (!regUsername.trim() || regUsername.trim().length < 2) {
+      setError('Por favor, escolhe um nome de utilizador (ex: maria.s ou tiago22).');
+      return;
+    }
+
     setError(null);
     setLoading(true);
 
-    if (profile.role === 'teacher') {
-      setIdentifier(profile.email || 'imaginebycarla2023@gmail.com');
-      setPassword('carlamso');
-      const res = await unifiedLogin(profile.email || 'imaginebycarla2023@gmail.com', 'carlamso');
-      setLoading(false);
+    try {
+      const selectedClass = CLASS_OPTIONS.find(c => c.id === regClassId);
+      const res = await registerStudent(
+        regName.trim(),
+        regUsername.trim(),
+        regAvatar,
+        regClassId,
+        selectedClass?.name || '6.º Ano — Turma A'
+      );
+
       if (res.success) {
         addToast({
-          title: 'Bem-vinda, Prof.ª Carla!',
-          message: 'Painel da docente sincronizado com o Firestore.',
-          type: 'success'
-        });
-        setCurrentView('teacher');
-      } else {
-        setError(res.error || 'Erro ao entrar como professora.');
-      }
-    } else {
-      setIdentifier(profile.name);
-      setPassword('');
-      const res = await unifiedLogin(profile.id, '');
-      setLoading(false);
-      if (res.success) {
-        addToast({
-          title: `Bem-vindo, ${profile.name}!`,
-          message: 'Sessão iniciada na Missão TIC 6.º Ano.',
+          title: `Conta Criada com Sucesso! 🚀`,
+          message: `Bem-vindo à Missão TIC, ${regName.trim()}! Começaste com os Mundos 1 e 2 desbloqueados.`,
           type: 'success'
         });
         setCurrentView('dashboard');
       } else {
-        setError(res.error || 'Erro ao entrar como aluno.');
+        setError(res.error || 'Erro ao criar conta. Tenta novamente com outro utilizador.');
       }
+    } catch (err: any) {
+      setError('Erro ao comunicar com o servidor. Tenta novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Guest / Visitor Access
+  const handleGuestAccess = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await loginGuest();
+      if (res.success) {
+        addToast({
+          title: 'Modo Visitante Ativado 🌟',
+          message: 'Podes explorar livremente todos os 5 mundos, simuladores e conteúdos.',
+          type: 'info'
+        });
+        setCurrentView('dashboard');
+      } else {
+        setError(res.error || 'Erro ao aceder como visitante.');
+      }
+    } catch (err: any) {
+      setError('Erro ao entrar em modo visitante.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -212,7 +178,7 @@ export const LoginView: React.FC = () => {
               Missão TIC <span className="text-blue-400 text-sm font-semibold">6.º Ano</span>
             </span>
             <span className="text-[10px] text-slate-400 block -mt-0.5">
-              Aprende. Experimenta. Resolve. Cria.
+              Plataforma Interativa de Tecnologias de Informação e Comunicação
             </span>
           </div>
         </div>
@@ -225,155 +191,301 @@ export const LoginView: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Single Unified Login Card */}
-      <div className="max-w-3xl w-full mx-auto my-6 sm:my-8 bg-slate-900/90 border border-slate-800/90 rounded-3xl p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
+      {/* Main Single Card with Tabs */}
+      <div className="max-w-2xl w-full mx-auto my-6 sm:my-8 bg-slate-900/90 border border-slate-800/90 rounded-3xl p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
         
         {/* Intro */}
-        <div className="text-center max-w-xl mx-auto mb-8">
+        <div className="text-center max-w-xl mx-auto mb-6">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-semibold mb-3">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Portal de Entrada da Turma</span>
+            <span>Portal Escolar e Educativo</span>
           </div>
           <h1 className="font-display font-black text-2xl sm:text-3xl text-white tracking-tight">
-            Entrar na Missão TIC
+            {activeTab === 'login' ? 'Entrar na Missão TIC' : 'Criar Conta de Aluno'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-2">
-            Alunos e docente entram no mesmo portal. Escreve os teus dados ou escolhe o teu perfil da Turma 6.º A abaixo.
+            {activeTab === 'login' 
+              ? 'Inicia sessão com o teu utilizador de aluno ou credenciais da docente.' 
+              : 'Regista a tua conta pessoal de aluno para guardares o teu progresso, XP e medalhas.'}
           </p>
         </div>
 
-        {/* Unified Form */}
-        <form onSubmit={handleSubmit} className="max-w-md mx-auto space-y-4 mb-8">
-          {/* Error Banner */}
-          {error && (
-            <div className="p-3.5 rounded-2xl bg-rose-950/70 border border-rose-600/60 text-rose-200 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Identifier Input */}
-          <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1.5">
-              Utilizador, Nome ou Email
-            </label>
-            <div className="relative">
-              <UserIcon className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                id="login-input-identifier"
-                type="text"
-                value={identifier}
-                onChange={e => setIdentifier(e.target.value)}
-                placeholder="ex: Alex Ramos ou imaginebycarla2023@gmail.com"
-                required
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Password Input (Required for teacher, optional for students) */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-bold text-slate-300">
-                Palavra-passe
-              </label>
-              {isTeacherSelected && (
-                <button
-                  type="button"
-                  onClick={() => setPassword('carlamso')}
-                  className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 hover:underline cursor-pointer"
-                >
-                  Preencher demo (carlamso)
-                </button>
-              )}
-            </div>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                id="login-input-password"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder={isTeacherSelected ? "Palavra-passe da Prof.ª Carla" : "Palavra-passe (apenas docente)"}
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1.5">
-              💡 <strong>Alunos</strong> acedem diretamente sem palavra-passe. A senha (<span className="font-mono text-slate-300">carlamso</span>) é apenas exigida para a conta da <strong>Prof.ª Carla</strong>.
-            </p>
-          </div>
-
-          {/* Submit Button */}
+        {/* Tab Switcher */}
+        <div className="flex bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800 max-w-md mx-auto mb-6">
           <button
-            id="btn-login-submit"
-            type="submit"
-            disabled={loading || !identifier.trim()}
-            className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-95 disabled:opacity-50 text-white rounded-xl font-bold text-xs sm:text-sm shadow-lg shadow-blue-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+            id="tab-btn-login"
+            type="button"
+            onClick={() => {
+              setActiveTab('login');
+              setError(null);
+            }}
+            className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+              activeTab === 'login'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900/50'
+            }`}
           >
-            {loading ? (
-              <span>A verificar credenciais...</span>
-            ) : (
-              <>
-                <span>Entrar na Missão TIC</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
+            <LogIn className="w-4 h-4" />
+            <span>Já tenho conta</span>
           </button>
-        </form>
 
-        {/* Divider */}
-        <div className="relative my-6 text-center">
+          <button
+            id="tab-btn-register"
+            type="button"
+            onClick={() => {
+              setActiveTab('register');
+              setError(null);
+            }}
+            className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+              activeTab === 'register'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900/50'
+            }`}
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Criar Conta de Aluno</span>
+          </button>
+        </div>
+
+        {/* Error Banner */}
+        {error && (
+          <div className="max-w-md mx-auto mb-5 p-3.5 rounded-2xl bg-rose-950/70 border border-rose-600/60 text-rose-200 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* TAB 1: LOGIN FORM */}
+        {activeTab === 'login' && (
+          <form onSubmit={handleLoginSubmit} className="max-w-md mx-auto space-y-4">
+            {/* Identifier Input */}
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                Utilizador, Nome ou Email
+              </label>
+              <div className="relative">
+                <UserIcon className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  id="login-input-identifier"
+                  type="text"
+                  value={identifier}
+                  onChange={e => setIdentifier(e.target.value)}
+                  placeholder="ex: Alex Ramos ou o teu nome de utilizador"
+                  required
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Password Input (Required for teacher, optional for students) */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-300">
+                  Palavra-passe
+                </label>
+                {isTeacherSelected && (
+                  <button
+                    type="button"
+                    onClick={() => setPassword('carlamso')}
+                    className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 hover:underline cursor-pointer"
+                  >
+                    Preencher demo (carlamso)
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  id="login-input-password"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder={isTeacherSelected ? "Palavra-passe da Prof.ª Carla" : "Palavra-passe (apenas docente)"}
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1.5">
+                💡 <strong>Alunos</strong> acedem diretamente com o seu nome ou utilizador. A palavra-passe é apenas exigida para a <strong>Prof.ª Carla</strong> (<span className="font-mono text-slate-300">carlamso</span>).
+              </p>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              id="btn-login-submit"
+              type="submit"
+              disabled={loading || !identifier.trim()}
+              className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-95 disabled:opacity-50 text-white rounded-xl font-bold text-xs sm:text-sm shadow-lg shadow-blue-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <span>A verificar credenciais...</span>
+              ) : (
+                <>
+                  <span>Entrar na Missão TIC</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+        )}
+
+        {/* TAB 2: REGISTER FORM (Aluno cria a sua conta) */}
+        {activeTab === 'register' && (
+          <form onSubmit={handleRegisterSubmit} className="max-w-md mx-auto space-y-4">
+            {/* Full Name */}
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                Nome Completo do Aluno
+              </label>
+              <div className="relative">
+                <UserIcon className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  id="reg-input-name"
+                  type="text"
+                  value={regName}
+                  onChange={e => {
+                    setRegName(e.target.value);
+                    if (!regUsername) {
+                      // Suggest username automatically
+                      const suggested = e.target.value
+                        .toLowerCase()
+                        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                        .replace(/\s+/g, '.')
+                        .replace(/[^a-z0-9.]/g, '');
+                      setRegUsername(suggested);
+                    }
+                  }}
+                  placeholder="ex: Matilde Pereira"
+                  required
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Username */}
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                Nome de Utilizador / Alcunha
+              </label>
+              <div className="relative">
+                <span className="text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-sm">@</span>
+                <input
+                  id="reg-input-username"
+                  type="text"
+                  value={regUsername}
+                  onChange={e => setRegUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''))}
+                  placeholder="ex: matilde.p"
+                  required
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+                />
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Usa letras, números ou pontos para o teu utilizador de acesso.
+              </p>
+            </div>
+
+            {/* Class Selection */}
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                Turma do 6.º Ano
+              </label>
+              <div className="relative">
+                <School className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <select
+                  id="reg-select-class"
+                  value={regClassId}
+                  onChange={e => setRegClassId(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                >
+                  {CLASS_OPTIONS.map(c => (
+                    <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Avatar Selector */}
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-2">
+                Escolhe o teu Avatar
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                {AVATAR_OPTIONS.map(av => (
+                  <button
+                    key={av.id}
+                    type="button"
+                    onClick={() => setRegAvatar(av.id)}
+                    className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                      regAvatar === av.id
+                        ? 'bg-blue-600/20 border-blue-500 ring-2 ring-blue-500/50'
+                        : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <UserAvatar avatarId={av.id} size="sm" />
+                    <span className="text-[10px] text-slate-300 font-medium truncate w-full">
+                      {av.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Submit Register */}
+            <button
+              id="btn-register-submit"
+              type="submit"
+              disabled={loading || !regName.trim() || !regUsername.trim()}
+              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white rounded-xl font-bold text-xs sm:text-sm shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center justify-center gap-2 mt-2"
+            >
+              {loading ? (
+                <span>A criar conta no Firestore...</span>
+              ) : (
+                <>
+                  <span>Criar Conta e Começar a Missão 🚀</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+        )}
+
+        {/* Divider for Visitor Mode */}
+        <div className="relative my-8 text-center max-w-md mx-auto">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-slate-800"></div>
           </div>
-          <span className="relative px-4 bg-slate-900 text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            Ou escolhe o teu perfil da turma
+          <span className="relative px-3 bg-slate-900 text-slate-400 text-xs font-semibold uppercase tracking-wider">
+            Ou explora sem registo
           </span>
         </div>
 
-        {/* Quick Profiles Grid: Teacher & Students Together */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
-          {CLASS_PROFILES.map(p => {
-            const isTeacher = p.role === 'teacher';
-            return (
-              <button
-                key={p.id}
-                id={`btn-profile-${p.id}`}
-                onClick={() => handleQuickSelect(p)}
-                disabled={loading}
-                className={`p-3.5 rounded-2xl border text-left transition-all group cursor-pointer flex items-center gap-3.5 ${
-                  isTeacher
-                    ? 'bg-indigo-950/50 hover:bg-indigo-900/60 border-indigo-500/40 hover:border-indigo-400'
-                    : 'bg-slate-950/60 hover:bg-slate-800/80 border-slate-800 hover:border-blue-500/50'
-                }`}
-              >
-                <div className="relative shrink-0">
-                  <UserAvatar name={p.name} avatarId={p.avatar} size="md" />
-                  {isTeacher && (
-                    <span className="absolute -bottom-1 -right-1 px-1 py-0.5 rounded bg-indigo-600 text-[9px] font-bold text-white uppercase">
-                      Prof
-                    </span>
-                  )}
-                </div>
+        {/* VISITOR MODE CARD / BUTTON */}
+        <div className="max-w-md mx-auto bg-gradient-to-r from-blue-950/40 via-indigo-950/40 to-slate-950/40 border border-blue-500/30 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/40 flex items-center justify-center text-blue-300 shrink-0">
+              <Eye className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-xs sm:text-sm font-bold text-white">
+                Acesso para Visitantes
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Explora livremente os 5 Mundos, simuladores e desafios sem criar conta.
+              </p>
+            </div>
+          </div>
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-1">
-                    <p className={`font-bold text-xs truncate ${isTeacher ? 'text-indigo-200 group-hover:text-white' : 'text-slate-200 group-hover:text-blue-400'}`}>
-                      {p.name}
-                    </p>
-                    {p.xp && (
-                      <span className="text-[10px] font-mono text-amber-400 font-bold shrink-0">
-                        {p.xp} XP
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                    {p.subtitle}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
+          <button
+            id="btn-guest-access"
+            type="button"
+            onClick={handleGuestAccess}
+            disabled={loading}
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white text-xs font-bold transition-all hover:border-blue-400 cursor-pointer whitespace-nowrap flex items-center justify-center gap-1.5 shadow-sm"
+          >
+            <Compass className="w-4 h-4 text-blue-400" />
+            <span>Explorar como Visitante</span>
+          </button>
         </div>
 
       </div>

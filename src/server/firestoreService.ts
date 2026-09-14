@@ -769,22 +769,45 @@ export async function serverClaimWeeklyChallenge(
 }
 
 /**
- * Server-side Create Student
+ * Server-side Student Registration (Self-Registration by Student)
  */
-export async function serverCreateStudent(name: string, username: string, classId: string = 'turma-6a') {
-  const userId = `aluno-${username.toLowerCase().replace(/[^a-z0-9]/g, '')}_${Math.random().toString(36).substring(2, 5)}`;
+export async function serverRegisterStudent(
+  name: string,
+  username: string,
+  avatar: string = 'alex',
+  classId: string = 'turma-6a',
+  className: string = '6.º Ano — Turma A'
+) {
+  const cleanName = (name || '').trim();
+  const cleanUsername = (username || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+
+  if (!cleanName || cleanName.length < 2) {
+    throw new Error('Por favor, indica o teu nome completo (mínimo 2 letras).');
+  }
+  if (!cleanUsername || cleanUsername.length < 2) {
+    throw new Error('Por favor, escolhe um nome de utilizador válido (mínimo 2 carateres).');
+  }
+
+  // Check if username is already in use
+  const userQ = query(collection(db, 'users'), where('username', '==', cleanUsername), limit(1));
+  const snap = await getDocs(userQ);
+  if (!snap.empty) {
+    throw new Error('Este nome de utilizador já está a ser utilizado por outro aluno. Escolhe outro.');
+  }
+
+  const userId = `aluno-${cleanUsername}_${Math.random().toString(36).substring(2, 6)}`;
   
   const user: ServerUser = {
     id: userId,
-    username,
-    name,
+    username: cleanUsername,
+    name: cleanName,
     role: 'student',
-    avatar: 'alex',
-    classId,
-    className: '6.º Ano — Turma A',
+    avatar: avatar || 'alex',
+    classId: classId || 'turma-6a',
+    className: className || '6.º Ano — Turma A',
     xp: 0,
     level: 1,
-    levelTitle: 'Novato Digital',
+    levelTitle: 'Explorador Digital',
     badges: [],
     createdAt: new Date().toISOString()
   };
@@ -793,9 +816,9 @@ export async function serverCreateStudent(name: string, username: string, classI
 
   await setDoc(doc(db, 'studentProgress', userId), {
     userId,
-    name,
-    classId,
-    unlockedWorlds: ['mundo-1'],
+    name: cleanName,
+    classId: classId || 'turma-6a',
+    unlockedWorlds: ['mundo-1', 'mundo-2'],
     completedActivities: [],
     completedSimulators: [],
     completedMissions: [],
@@ -814,7 +837,7 @@ export async function serverCreateStudent(name: string, username: string, classI
 
   await setDoc(doc(db, 'classMembers', `${classId}_${userId}`), {
     id: `${classId}_${userId}`,
-    classId,
+    classId: classId || 'turma-6a',
     userId,
     role: 'student',
     joinedAt: new Date().toISOString()
@@ -823,12 +846,19 @@ export async function serverCreateStudent(name: string, username: string, classI
   await setDoc(doc(db, 'auditLogs', `log_${Date.now()}`), {
     id: `log_${Date.now()}`,
     timestamp: new Date().toISOString(),
-    action: 'STUDENT_CREATED',
-    actorId: 'teacher',
-    details: `Novo aluno registado no Firestore: ${name} (${username}) na turma ${classId}.`
+    action: 'STUDENT_SELF_REGISTERED',
+    actorId: userId,
+    details: `Novo aluno auto-registou a sua conta: ${cleanName} (@${cleanUsername}) na turma ${classId}.`
   });
 
   return user;
+}
+
+/**
+ * Server-side Create Student (by Teacher)
+ */
+export async function serverCreateStudent(name: string, username: string, classId: string = 'turma-6a') {
+  return serverRegisterStudent(name, username, 'alex', classId, classId === 'turma-6a' ? '6.º Ano — Turma A' : '6.º Ano');
 }
 
 /**
@@ -944,7 +974,21 @@ export async function serverStudentLogin(identifier: string): Promise<ServerUser
     return snap.docs[0].data() as ServerUser;
   }
 
-  throw new Error('Aluno não encontrado com esse identificador.');
+  // Also query by name if username wasn't an exact match
+  const allStudentsQ = query(collection(db, 'users'), where('role', '==', 'student'));
+  const allSnap = await getDocs(allStudentsQ);
+  for (const docSnap of allSnap.docs) {
+    const data = docSnap.data() as ServerUser;
+    if (
+      data.name.toLowerCase() === cleanId ||
+      data.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === cleanId.normalize("NFD").replace(/[\u0300-\u036f]/g, "") ||
+      data.username.toLowerCase() === cleanId
+    ) {
+      return data;
+    }
+  }
+
+  throw new Error('Aluno não encontrado com esse identificador. Se és novo, clica em "Criar Conta de Aluno"!');
 }
 
 /**
