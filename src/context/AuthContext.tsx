@@ -8,6 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (username: string, role?: UserRole) => Promise<boolean>;
+  loginTeacher: (password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   switchDemoUser: (role: UserRole) => Promise<void>;
   updateUserProgress: (updater: (prev: User) => User) => void;
@@ -54,8 +55,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    // Initial sync with Firestore
-    fetchUserFromFirestore('aluno-alex').finally(() => {
+    const isLoggedOut = localStorage.getItem('missao_tic_logged_out') === 'true';
+    if (isLoggedOut) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+    const savedUserId = localStorage.getItem('missao_tic_user_id') || 'aluno-alex';
+    fetchUserFromFirestore(savedUserId).finally(() => {
       setIsLoading(false);
     });
   }, [fetchUserFromFirestore]);
@@ -63,27 +70,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (username: string, chosenRole: UserRole = 'student'): Promise<boolean> => {
     setIsLoading(true);
     let targetUserId = 'aluno-alex';
-    if (chosenRole === 'teacher') targetUserId = 'prof-1';
-    if (chosenRole === 'admin') targetUserId = 'admin-1';
+    if (chosenRole === 'teacher') targetUserId = 'prof-carla';
+    else if (chosenRole === 'admin') targetUserId = 'admin-1';
+    else if (username && username.trim() !== '') {
+      targetUserId = username.trim();
+    }
 
     const success = await fetchUserFromFirestore(targetUserId);
     if (!success) {
       if (chosenRole === 'teacher') setUser(DEMO_TEACHER);
       else if (chosenRole === 'admin') setUser(DEMO_ADMIN);
-      else setUser(DEMO_STUDENT);
+      else setUser({ ...DEMO_STUDENT, id: targetUserId, name: username || 'Alex Ramos' });
     }
+    localStorage.removeItem('missao_tic_logged_out');
+    localStorage.setItem('missao_tic_user_id', targetUserId);
     setIsLoading(false);
     return true;
   };
 
+  const loginTeacher = async (password: string): Promise<{ success: boolean; error?: string }> => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/auth/teacher-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'imaginebycarla2023@gmail.com',
+          password
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setIsLoading(false);
+        return { success: false, error: data.error || 'Palavra-passe incorreta para a Prof.ª Carla.' };
+      }
+
+      setUser({
+        ...data.teacher,
+        completedActivities: [],
+        completedSimulators: [],
+        completedMissions: [],
+        completedAssessments: {},
+        claimedWeeklyChallenges: []
+      });
+      localStorage.removeItem('missao_tic_logged_out');
+      localStorage.setItem('missao_tic_user_id', 'prof-carla');
+      setIsLoading(false);
+      return { success: true };
+    } catch (err: any) {
+      setIsLoading(false);
+      return { success: false, error: 'Erro ao validar credenciais do professor no Firestore.' };
+    }
+  };
+
   const logout = () => {
+    localStorage.removeItem('missao_tic_user_id');
+    localStorage.setItem('missao_tic_logged_out', 'true');
     setUser(null);
   };
 
   const switchDemoUser = async (targetRole: UserRole) => {
     setIsLoading(true);
     let targetId = 'aluno-alex';
-    if (targetRole === 'teacher') targetId = 'prof-1';
+    if (targetRole === 'teacher') targetId = 'prof-carla';
     if (targetRole === 'admin') targetId = 'admin-1';
 
     const ok = await fetchUserFromFirestore(targetId);
@@ -92,6 +142,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       else if (targetRole === 'admin') setUser(DEMO_ADMIN);
       else setUser(DEMO_STUDENT);
     }
+    localStorage.removeItem('missao_tic_logged_out');
+    localStorage.setItem('missao_tic_user_id', targetId);
     setIsLoading(false);
   };
 
@@ -136,6 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated,
         isLoading,
         login,
+        loginTeacher,
         logout,
         switchDemoUser,
         updateUserProgress,

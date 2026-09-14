@@ -105,8 +105,8 @@ export const DEMO_CLASSES: ClassRoom[] = [
     id: 'turma-6a',
     name: '6.º Ano — Turma A',
     code: 'TIC-6A-2026',
-    teacherId: 'prof-1',
-    teacherName: 'Prof.ª Helena Santos',
+    teacherId: 'prof-carla',
+    teacherName: 'Prof.ª Carla',
     studentsCount: 8,
     rankingEnabled: true,
     createdAt: '2026-09-01'
@@ -115,8 +115,8 @@ export const DEMO_CLASSES: ClassRoom[] = [
     id: 'turma-6b',
     name: '6.º Ano — Turma B',
     code: 'TIC-6B-2026',
-    teacherId: 'prof-1',
-    teacherName: 'Prof.ª Helena Santos',
+    teacherId: 'prof-carla',
+    teacherName: 'Prof.ª Carla',
     studentsCount: 6,
     rankingEnabled: true,
     createdAt: '2026-09-01'
@@ -143,10 +143,12 @@ export const DEMO_STUDENT: User = {
   createdAt: '2026-09-05'
 };
 
+// Único professor da plataforma Missão TIC
 export const DEMO_TEACHER: User = {
-  id: 'prof-1',
-  username: 'helena.santos',
-  name: 'Prof.ª Helena Santos',
+  id: 'prof-carla',
+  email: 'imaginebycarla2023@gmail.com',
+  username: 'imaginebycarla2023@gmail.com',
+  name: 'Prof.ª Carla',
   role: 'teacher',
   avatar: 'teacher-helena',
   classId: 'turma-6a',

@@ -11,7 +11,8 @@ import {
   serverSubmitAssessment,
   serverSubmitMission,
   serverClaimWeeklyChallenge,
-  serverCreateStudent
+  serverCreateStudent,
+  serverTeacherLogin
 } from './src/server/firestoreService';
 import { collection, getDocs, doc, getDoc, query, orderBy, limit } from 'firebase/firestore';
 
@@ -140,7 +141,7 @@ async function startServer() {
     }
   });
 
-  // Create Student in Firestore
+  // Create Student in Firestore (Only students are created; only 1 teacher Carla exists)
   app.post('/api/students/create', async (req, res) => {
     try {
       const { name, username, classId } = req.body;
@@ -151,6 +152,20 @@ async function startServer() {
       res.json({ success: true, student: newStudent });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Teacher Authentication Endpoint (Único professor da plataforma)
+  app.post('/api/auth/teacher-login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email e palavra-passe são obrigatórios.' });
+      }
+      const teacher = await serverTeacherLogin(email, password);
+      res.json({ success: true, teacher });
+    } catch (err: any) {
+      res.status(401).json({ error: err.message });
     }
   });
 

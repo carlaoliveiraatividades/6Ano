@@ -1,12 +1,27 @@
 import React from 'react';
-import { Home, Compass, Trophy, Award, User as UserIcon, GraduationCap } from 'lucide-react';
+import { Home, Compass, Trophy, Award, User as UserIcon, GraduationCap, LogOut, X } from 'lucide-react';
 import { Logo } from '../common/Logo';
 import { useApp, MainView } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 
-export const Sidebar: React.FC = () => {
-  const { currentView, setCurrentView } = useApp();
-  const { role } = useAuth();
+interface SidebarProps {
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) => {
+  const { currentView, setCurrentView, addToast } = useApp();
+  const { role, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    addToast({
+      title: 'Sessão Terminada',
+      message: 'Terminaste a sessão na Missão TIC com sucesso.',
+      type: 'info'
+    });
+    if (onCloseMobile) onCloseMobile();
+  };
 
   interface NavItem {
     id: MainView;
@@ -94,12 +109,23 @@ export const Sidebar: React.FC = () => {
         </nav>
       </div>
 
-      {/* Bottom Educational Quote Card matching reference UI */}
-      <div className="p-4 m-4 rounded-2xl bg-sky-50/70 border border-sky-100/80 relative overflow-hidden">
-        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-blue-500 rounded-l-2xl" />
-        <p className="text-xs italic text-slate-700 font-medium pl-2 leading-relaxed">
-          &ldquo;Pequenas aprendizagens fazem grandes futuros.&rdquo;
-        </p>
+      {/* Bottom Educational Quote Card & Logout */}
+      <div className="p-4 space-y-3">
+        <div className="p-3.5 rounded-2xl bg-sky-50/70 border border-sky-100/80 relative overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-blue-500 rounded-l-2xl" />
+          <p className="text-xs italic text-slate-700 font-medium pl-2 leading-relaxed">
+            &ldquo;Pequenas aprendizagens fazem grandes futuros.&rdquo;
+          </p>
+        </div>
+
+        <button
+          id="sidebar-btn-logout"
+          onClick={handleLogout}
+          className="w-full py-2.5 px-3 rounded-xl border border-slate-200 text-slate-600 hover:text-red-600 hover:bg-red-50 hover:border-red-200 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Terminar Sessão</span>
+        </button>
       </div>
     </aside>
   );

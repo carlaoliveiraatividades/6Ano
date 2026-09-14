@@ -29,6 +29,7 @@ export const db: Firestore = getFirestore(app, firebaseConfig.firestoreDatabaseI
 export interface ServerUser {
   id: string;
   username: string;
+  email?: string;
   name: string;
   role: 'student' | 'teacher' | 'admin';
   avatar: string;
@@ -204,8 +205,9 @@ export async function initializeAndSeedFirestore() {
         id: 'turma-6a',
         name: '6.º Ano — Turma A',
         code: 'TIC-6A-2026',
-        teacherId: 'prof-1',
-        teacherName: 'Prof.ª Helena Santos',
+        teacherId: 'prof-carla',
+        teacherName: 'Prof.ª Carla',
+        teacherEmail: 'imaginebycarla2023@gmail.com',
         studentsCount: 8,
         rankingEnabled: true,
         createdAt: '2026-09-01T08:00:00Z',
@@ -231,9 +233,10 @@ export async function initializeAndSeedFirestore() {
         isDemo: true
       },
       {
-        id: 'prof-1',
-        username: 'helena.santos',
-        name: 'Prof.ª Helena Santos',
+        id: 'prof-carla',
+        email: 'imaginebycarla2023@gmail.com',
+        username: 'imaginebycarla2023@gmail.com',
+        name: 'Prof.ª Carla',
         role: 'teacher',
         avatar: 'teacher-helena',
         classId: 'turma-6a',
@@ -802,3 +805,45 @@ export async function serverCreateStudent(name: string, username: string, classI
 
   return user;
 }
+
+/**
+ * Server-side Teacher Authentication
+ * Valida o único professor autorizado na plataforma: imaginebycarla2023@gmail.com com password carlamso.
+ */
+export async function serverTeacherLogin(email: string, pass: string): Promise<ServerUser> {
+  const normalizedEmail = (email || '').trim().toLowerCase();
+  const normalizedPass = (pass || '').trim();
+
+  if (normalizedEmail !== 'imaginebycarla2023@gmail.com' || normalizedPass !== 'carlamso') {
+    throw new Error('Credenciais de professor inválidas. Acesso restrito à Prof.ª Carla.');
+  }
+
+  const teacherRef = doc(db, 'users', 'prof-carla');
+  const teacherSnap = await getDoc(teacherRef);
+
+  if (teacherSnap.exists()) {
+    return teacherSnap.data() as ServerUser;
+  }
+
+  // Ensure record exists in Firestore
+  const teacher: ServerUser = {
+    id: 'prof-carla',
+    email: 'imaginebycarla2023@gmail.com',
+    username: 'imaginebycarla2023@gmail.com',
+    name: 'Prof.ª Carla',
+    role: 'teacher',
+    avatar: 'teacher-helena',
+    classId: 'turma-6a',
+    className: '6.º Ano — Turma A',
+    xp: 2500,
+    level: 8,
+    levelTitle: 'Mestre da Missão TIC',
+    badges: ['badge-guardiao', 'badge-detetive', 'badge-criador', 'badge-engenheiro', 'badge-ia', 'badge-mestre'],
+    createdAt: '2026-09-01T08:00:00Z',
+    isDemo: true
+  };
+
+  await setDoc(teacherRef, teacher);
+  return teacher;
+}
+

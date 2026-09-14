@@ -1,15 +1,26 @@
 import React, { useState } from 'react';
-import { Search, Bell, LogOut, Lightbulb, ChevronDown, Database } from 'lucide-react';
+import { Search, Bell, LogOut, Lightbulb, ChevronDown, Database, KeyRound, GraduationCap } from 'lucide-react';
 import { UserAvatar } from '../common/UserAvatar';
 import { useAuth } from '../../context/AuthContext';
 import { getLevelForXp } from '../../data/initialData';
 import { useApp } from '../../context/AppContext';
+import { TeacherLoginModal } from '../common/TeacherLoginModal';
 
 export const Header: React.FC = () => {
   const { user, role, logout, switchDemoUser } = useAuth();
-  const { setCurrentView } = useApp();
+  const { setCurrentView, addToast } = useApp();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showTeacherLoginModal, setShowTeacherLoginModal] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    addToast({
+      title: 'Sessão Terminada',
+      message: 'Terminaste a sessão na Missão TIC com sucesso.',
+      type: 'info'
+    });
+  };
 
   const xp = user?.xp || 320;
   const levelData = getLevelForXp(xp);
@@ -40,7 +51,7 @@ export const Header: React.FC = () => {
             </span>
           </div>
           <p className="text-xs md:text-sm text-slate-500 font-medium">
-            Pronto para mais uma missão?
+            {role === 'teacher' ? 'Painel exclusivo da docente (imaginebycarla2023@gmail.com)' : 'Pronto para mais uma missão?'}
           </p>
 
           {/* Level and XP Progress bar */}
@@ -88,13 +99,13 @@ export const Header: React.FC = () => {
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
             <span>
-              {role === 'student' ? 'Aluno (Alex)' : role === 'teacher' ? 'Prof. Helena' : 'Admin'}
+              {role === 'student' ? 'Aluno (Alex)' : role === 'teacher' ? 'Prof.ª Carla' : 'Admin'}
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
           </button>
 
           {showRoleMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 z-50 text-xs">
+            <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 z-50 text-xs">
               <div className="px-2 py-1.5 text-[10px] font-bold uppercase text-slate-400">
                 Alternar Utilizador Demo
               </div>
@@ -114,11 +125,28 @@ export const Header: React.FC = () => {
                   setShowRoleMenu(false);
                   setCurrentView('teacher');
                 }}
-                className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-medium flex items-center justify-between"
+                className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-medium flex flex-col"
               >
-                <span>Professora (Helena)</span>
-                {role === 'teacher' && <span className="text-indigo-600 font-bold">✓</span>}
+                <div className="flex items-center justify-between w-full">
+                  <span className="font-bold">Prof.ª Carla (Única Docente)</span>
+                  {role === 'teacher' && <span className="text-indigo-600 font-bold">✓</span>}
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono">imaginebycarla2023@gmail.com</span>
               </button>
+
+              <button
+                onClick={() => {
+                  setShowRoleMenu(false);
+                  setShowTeacherLoginModal(true);
+                }}
+                className="w-full text-left px-2.5 py-2 mt-1 rounded-xl bg-indigo-50/70 hover:bg-indigo-100 text-indigo-800 font-semibold flex items-center gap-2 border border-indigo-200/60"
+              >
+                <KeyRound className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Validar Palavra-passe (carlamso)</span>
+              </button>
+
+              <div className="my-1 border-t border-slate-100" />
+
               <button
                 onClick={() => {
                   switchDemoUser('admin');
@@ -173,7 +201,7 @@ export const Header: React.FC = () => {
         {/* Terminar Sessão (Logout) button matching reference UI */}
         <button
           id="btn-logout"
-          onClick={logout}
+          onClick={handleLogout}
           className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-xl border border-slate-200 transition-colors cursor-pointer"
           title="Terminar sessão"
         >
@@ -181,6 +209,12 @@ export const Header: React.FC = () => {
           <span className="hidden sm:inline">Terminar sessão</span>
         </button>
       </div>
+
+      {/* Teacher Login Modal */}
+      <TeacherLoginModal
+        isOpen={showTeacherLoginModal}
+        onClose={() => setShowTeacherLoginModal(false)}
+      />
     </header>
   );
 };

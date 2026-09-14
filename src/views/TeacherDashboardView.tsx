@@ -127,20 +127,23 @@ export const TeacherDashboardView: React.FC = () => {
       <div className="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl p-6 sm:p-8 text-white shadow-md">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="px-3 py-1 rounded-full bg-white/20 text-xs font-bold uppercase tracking-wider backdrop-blur-xs">
-                Painel do Professor • TIC 6.º Ano
+                Painel da Prof.ª Carla • TIC 6.º Ano
               </span>
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-950/40 text-[10px] font-mono text-emerald-200 border border-emerald-400/30 flex items-center gap-1">
                 <Database className="w-3 h-3 text-emerald-300" />
                 Firestore Ativo
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-[10px] font-mono text-emerald-100 border border-white/20">
+                imaginebycarla2023@gmail.com
               </span>
             </div>
             <h1 className="font-display font-extrabold text-2xl sm:text-3xl mt-2">
               Gestão Pedagógica da Turma 6.º A
             </h1>
             <p className="text-xs sm:text-sm text-emerald-100 mt-1 max-w-xl">
-              Acompanha o progresso individual sincronizado com o Firestore, atribui bónus oficiais de mérito e valida as missões autênticas.
+              Docente única da plataforma. Acompanha o progresso individual dos alunos sincronizado com o Firestore, atribui bónus de mérito e valida as missões autênticas.
             </p>
           </div>
 
@@ -382,10 +385,10 @@ export const TeacherDashboardView: React.FC = () => {
             </div>
             <div>
               <h3 className="font-display font-bold text-lg text-slate-900">
-                Registar Novo Aluno na Turma 6.º A
+                Registar Novo Aluno na Turma da Prof.ª Carla
               </h3>
               <p className="text-xs text-slate-500">
-                Cria o registo nas coleções <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">users</code>, <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">studentProgress</code> e <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">classMembers</code> no Firestore.
+                Docente titular: <strong>Prof.ª Carla</strong> (<span className="font-mono text-slate-700">imaginebycarla2023@gmail.com</span>). A inscrição é reservada exclusivamente a alunos no Firestore.
               </p>
             </div>
           </div>
