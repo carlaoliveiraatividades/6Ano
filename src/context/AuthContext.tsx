@@ -8,10 +8,18 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isGuest?: boolean;
-  login: (username: string, role?: UserRole) => Promise<boolean>;
-  loginTeacher: (password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (username: string, role?: UserRole, password?: string) => Promise<boolean>;
+  loginTeacher: (password: string, identifier?: string) => Promise<{ success: boolean; error?: string }>;
   unifiedLogin: (identifier: string, password?: string) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
-  registerStudent: (name: string, username: string, avatar?: string, classId?: string, className?: string) => Promise<{ success: boolean; error?: string; user?: User }>;
+  registerStudent: (params: {
+    name: string;
+    email: string;
+    password: string;
+    classId: string;
+    className: string;
+    nickname?: string;
+    avatar?: any;
+  }) => Promise<{ success: boolean; error?: string; user?: User }>;
   loginGuest: () => Promise<{ success: boolean; error?: string; user?: User }>;
   logout: () => void;
   switchDemoUser: (role: UserRole) => Promise<void>;
@@ -82,7 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [fetchUserFromFirestore]);
 
-  const login = async (username: string, chosenRole: UserRole = 'student'): Promise<boolean> => {
+  const login = async (username: string, chosenRole: UserRole = 'student', password?: string): Promise<boolean> => {
     setIsLoading(true);
     let targetUserId = username && username.trim() !== '' ? username.trim() : 'aluno-alex';
 
@@ -91,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const res = await fetch('/api/auth/student-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identifier: targetUserId })
+          body: JSON.stringify({ identifier: targetUserId, password })
         });
         if (res.ok) {
           const data = await res.json();
@@ -182,34 +190,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: res.error || 'Palavra-passe incorreta para o docente.' };
     }
 
-    // Student login
-    let targetStudentId = identifier.trim();
-    const studentMap: Record<string, string> = {
-      'alex': 'aluno-alex',
-      'alex ramos': 'aluno-alex',
-      'alex.silva': 'aluno-alex',
-      'leonor': 'aluno-leonor',
-      'leonor santos': 'aluno-leonor',
-      'tiago': 'aluno-tiago',
-      'tiago ferreira': 'aluno-tiago',
-      'beatriz': 'aluno-beatriz',
-      'beatriz costa': 'aluno-beatriz',
-      'duarte': 'aluno-duarte',
-      'duarte lima': 'aluno-duarte',
-      'ines': 'aluno-ines',
-      'inês': 'aluno-ines',
-      'inês mendes': 'aluno-ines',
-      'miguel': 'aluno-miguel',
-      'miguel rocha': 'aluno-miguel',
-      'sofia': 'aluno-sofia',
-      'sofia martins': 'aluno-sofia',
-    };
-    if (studentMap[cleanId]) {
-      targetStudentId = studentMap[cleanId];
-    }
+    // Student login via server API
+    try {
+      const res = await fetch('/api/auth/student-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: identifier.trim(), password })
+      });
 
-    await login(targetStudentId, 'student');
-    return { success: true, role: 'student' };
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setIsLoading(false);
+        return { success: false, error: data.error || 'Email, Nickname ou palavra-passe incorretos.' };
+      }
+
+      await fetchUserFromFirestore(data.user.id);
+      localStorage.removeItem('missao_tic_logged_out');
+      localStorage.setItem('missao_tic_user_id', data.user.id);
+      setIsLoading(false);
+      return { success: true, role: 'student' };
+    } catch (err: any) {
+      setIsLoading(false);
+      return { success: false, error: 'Erro de comunicação ao validar a conta.' };
+    }
   };
 
   const logout = () => {
@@ -270,19 +273,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return null;
   };
 
-  const registerStudent = async (
-    name: string,
-    username: string,
-    avatar: string = 'alex',
-    classId: string = 'turma-6a',
-    className: string = '6.º Ano — Turma A'
-  ): Promise<{ success: boolean; error?: string; user?: User }> => {
+  const registerStudent = async (params: {
+    name: string;
+    email: string;
+    password: string;
+    classId: string;
+    className: string;
+    nickname?: string;
+    avatar?: any;
+  }): Promise<{ success: boolean; error?: string; user?: User }> => {
     setIsLoading(true);
     try {
       const res = await fetch('/api/auth/student-register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, username, avatar, classId, className })
+        body: JSON.stringify(params)
       });
 
       const data = await res.json();

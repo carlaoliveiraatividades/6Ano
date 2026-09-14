@@ -1,12 +1,25 @@
 export type UserRole = 'student' | 'teacher' | 'visitor';
 
+export interface AvatarConfig {
+  skin: 'light' | 'medium' | 'tan' | 'dark' | 'cyber';
+  hair: 'short' | 'spiky' | 'curly' | 'long' | 'ponytail' | 'afro' | 'braids' | 'shaved';
+  hairColor: 'black' | 'brown' | 'blonde' | 'red' | 'cyan' | 'purple' | 'green' | 'white';
+  expression: 'smile' | 'laugh' | 'cool' | 'wink' | 'stars' | 'focused';
+  glasses: 'none' | 'round' | 'modern' | 'sunglasses' | 'vr';
+  headwear: 'none' | 'cap' | 'beanie' | 'headphones' | 'crown' | 'wizard';
+  outfit: 'tshirt' | 'hoodie' | 'polo' | 'hero';
+  outfitColor: 'blue' | 'purple' | 'emerald' | 'rose' | 'amber' | 'dark';
+  bgColor: 'indigo' | 'emerald' | 'amber' | 'rose' | 'sky' | 'slate' | 'violet';
+}
+
 export interface User {
   id: string;
-  username: string;
-  email?: string;
-  name: string;
+  nickname?: string; // Public identifier (e.g. Panda_Feliz_701)
+  username?: string;
+  email?: string; // Private email
+  name: string; // Real private name
   role: UserRole;
-  avatar: string;
+  avatar: string | AvatarConfig;
   classId?: string;
   className?: string;
   xp: number;
@@ -169,7 +182,9 @@ export interface ClassRoom {
 export interface StudentProgressSummary {
   userId: string;
   name: string;
-  avatar: string;
+  nickname?: string;
+  avatar: string | AvatarConfig;
+  className?: string;
   xp: number;
   level: number;
   levelTitle: string;

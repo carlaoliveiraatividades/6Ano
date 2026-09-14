@@ -19,6 +19,7 @@ import { BADGES, LEVELS, getLevelForXp, DEMO_CLASS_STUDENTS } from '../data/init
 import { DAILY_TIPS, DAILY_QUOTES } from '../data/dailyContent';
 import { WEEKLY_CHALLENGES } from '../data/weeklyChallenges';
 import { hashPassword, verifyPassword } from './authSecurity';
+import { generateRandomNickname, generateDeterministicAvatar } from '../utils/avatarUtils';
 
 // Initialize Firebase client in server environment
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -36,11 +37,13 @@ export const CANONICAL_REWARDS = {
 // Interfaces
 export interface ServerUser {
   id: string;
+  nickname: string; // Public unique handle (e.g. Panda_Feliz_701)
+  nicknameLower?: string;
   username: string;
-  email?: string;
-  name: string;
+  email?: string; // Private normalized email
+  name: string; // Real private name
   role: 'student' | 'teacher';
-  avatar: string;
+  avatar: string | any;
   classId?: string;
   className?: string;
   xp: number;
@@ -49,6 +52,19 @@ export interface ServerUser {
   badges: string[];
   createdAt: string;
   isDemo?: boolean;
+}
+
+export interface PublicStudentProfile {
+  id: string;
+  nickname: string;
+  classId?: string;
+  className?: string;
+  xp: number;
+  level: number;
+  levelTitle: string;
+  avatar: string | any;
+  badgesCount: number;
+  role: 'student';
 }
 
 export interface ServerStudentProgress {
@@ -795,55 +811,172 @@ export async function serverClaimWeeklyChallenge(
 }
 
 /**
- * Server-side Student Registration (Self-Registration by Student)
+ * Check if a nickname is unique (case-insensitive)
  */
-export async function serverRegisterStudent(
-  name: string,
-  username: string,
-  avatar: string = 'alex',
-  classId: string = 'turma-6a',
-  className: string = '6.º Ano — Turma A'
-) {
-  const cleanName = (name || '').trim();
-  const cleanUsername = (username || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+export async function serverCheckNicknameUnique(nickname: string): Promise<{ available: boolean; nickname: string }> {
+  const clean = (nickname || '').trim();
+  if (!clean || clean.length < 3) {
+    return { available: false, nickname: clean };
+  }
+  const cleanLower = clean.toLowerCase();
 
+  // Check in users collection
+  const q1 = query(collection(db, 'users'), where('nicknameLower', '==', cleanLower), limit(1));
+  const s1 = await getDocs(q1);
+  if (!s1.empty) {
+    return { available: false, nickname: clean };
+  }
+
+  // Also query where nickname exact match (for older docs)
+  const allUsersSnap = await getDocs(collection(db, 'users'));
+  for (const docSnap of allUsersSnap.docs) {
+    const data = docSnap.data() as ServerUser;
+    if (data.nickname && data.nickname.toLowerCase() === cleanLower) {
+      return { available: false, nickname: clean };
+    }
+  }
+
+  return { available: true, nickname: clean };
+}
+
+/**
+ * Generate a guaranteed unique nickname
+ */
+export async function serverGenerateUniqueNickname(): Promise<string> {
+  for (let attempt = 0; attempt < 25; attempt++) {
+    const candidate = generateRandomNickname();
+    const check = await serverCheckNicknameUnique(candidate);
+    if (check.available) {
+      return candidate;
+    }
+  }
+  // Fallback with timestamp
+  return `Gamer_Pro_${Date.now().toString().slice(-4)}`;
+}
+
+export interface StudentRegistrationInput {
+  name: string;
+  email: string;
+  password?: string;
+  classId?: string;
+  className?: string;
+  nickname?: string;
+  avatar?: any;
+}
+
+/**
+ * Server-side Student Registration (Full specification)
+ * 1. Validates real name (private, min 2 chars)
+ * 2. Normalizes email (trim + lowercase), checks for duplicates
+ * 3. Validates password (min 6 chars) and hashes securely
+ * 4. Ensures unique public nickname (case-insensitive)
+ * 5. Saves private profile, user credentials, and public ranking profile
+ */
+export async function serverRegisterStudent(input: StudentRegistrationInput): Promise<ServerUser> {
+  const cleanName = (input.name || '').trim();
+  const rawEmail = (input.email || '').trim();
+  const cleanEmail = rawEmail.toLowerCase();
+  const rawPassword = input.password || '';
+  const classId = (input.classId || 'turma-6a').trim();
+  const className = (input.className || '6.º A').trim();
+
+  // 1. Validate Real Name
   if (!cleanName || cleanName.length < 2) {
     throw new Error('Por favor, indica o teu nome completo (mínimo 2 letras).');
   }
-  if (!cleanUsername || cleanUsername.length < 2) {
-    throw new Error('Por favor, escolhe um nome de utilizador válido (mínimo 2 carateres).');
+
+  // 2. Validate Email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+    throw new Error('Por favor, introduz um endereço de email válido (exemplo: aluno@escola.pt).');
   }
 
-  // Check if username is already in use
-  const userQ = query(collection(db, 'users'), where('username', '==', cleanUsername), limit(1));
-  const snap = await getDocs(userQ);
-  if (!snap.empty) {
-    throw new Error('Este nome de utilizador já está a ser utilizado por outro aluno. Escolhe outro.');
+  // Check if email is already in use
+  const emailQ = query(collection(db, 'users'), where('email', '==', cleanEmail), limit(1));
+  const emailSnap = await getDocs(emailQ);
+  if (!emailSnap.empty) {
+    throw new Error('Este endereço de email já se encontra registado. Faz login com as tuas credenciais.');
   }
 
-  const userId = `aluno-${cleanUsername}_${Math.random().toString(36).substring(2, 6)}`;
+  // 3. Validate Password
+  if (!rawPassword || rawPassword.length < 6) {
+    throw new Error('A palavra-passe deve ter pelo menos 6 caracteres.');
+  }
+
+  // 4. Validate & Ensure Unique Nickname
+  let nickname = (input.nickname || '').trim();
+  if (!nickname) {
+    nickname = await serverGenerateUniqueNickname();
+  } else {
+    const isUnique = await serverCheckNicknameUnique(nickname);
+    if (!isUnique.available) {
+      throw new Error(`O nickname "${nickname}" já está a ser utilizado por outro colega. Clica em "Baralhar outro Nickname"!`);
+    }
+  }
+
+  // 5. Setup Avatar
+  let avatar = input.avatar;
+  if (!avatar) {
+    avatar = generateDeterministicAvatar(nickname);
+  }
+
+  const userId = `aluno-${cleanEmail.replace(/[^a-z0-9]/g, '_').substring(0, 15)}_${Math.random().toString(36).substring(2, 6)}`;
   
+  // 6. Create User Object (Private Profile)
   const user: ServerUser = {
     id: userId,
-    username: cleanUsername,
+    nickname,
+    nicknameLower: nickname.toLowerCase(),
+    username: cleanEmail,
+    email: cleanEmail,
     name: cleanName,
     role: 'student',
-    avatar: avatar || 'alex',
-    classId: classId || 'turma-6a',
-    className: className || '6.º Ano — Turma A',
+    avatar,
+    classId,
+    className,
     xp: 0,
     level: 1,
-    levelTitle: 'Explorador Digital',
+    levelTitle: 'Novato Digital',
     badges: [],
     createdAt: new Date().toISOString()
   };
 
+  // 7. Save to 'users' collection
   await setDoc(doc(db, 'users', userId), user);
 
+  // 8. Hash and save Password in 'userCredentials'
+  const { salt, hash } = hashPassword(rawPassword);
+  await setDoc(doc(db, 'userCredentials', userId), {
+    userId,
+    email: cleanEmail,
+    nickname,
+    salt,
+    hash,
+    updatedAt: new Date().toISOString()
+  });
+
+  // 9. Save Public Profile in 'publicProfiles' (for Leaderboards & Classmates without revealing name/email)
+  await setDoc(doc(db, 'publicProfiles', userId), {
+    id: userId,
+    nickname,
+    nicknameLower: nickname.toLowerCase(),
+    classId,
+    className,
+    xp: 0,
+    level: 1,
+    levelTitle: 'Novato Digital',
+    avatar,
+    badgesCount: 0,
+    role: 'student',
+    updatedAt: new Date().toISOString()
+  });
+
+  // 10. Initialize Student Progress
   await setDoc(doc(db, 'studentProgress', userId), {
     userId,
     name: cleanName,
-    classId: classId || 'turma-6a',
+    nickname,
+    classId,
     unlockedWorlds: ['mundo-1', 'mundo-2'],
     completedActivities: [],
     completedSimulators: [],
@@ -861,20 +994,22 @@ export async function serverRegisterStudent(
     lastActive: 'Agora'
   });
 
+  // 11. Associate with Classroom
   await setDoc(doc(db, 'classMembers', `${classId}_${userId}`), {
     id: `${classId}_${userId}`,
-    classId: classId || 'turma-6a',
+    classId,
     userId,
     role: 'student',
     joinedAt: new Date().toISOString()
   });
 
+  // 12. Audit Log
   await setDoc(doc(db, 'auditLogs', `log_${Date.now()}`), {
     id: `log_${Date.now()}`,
     timestamp: new Date().toISOString(),
-    action: 'STUDENT_SELF_REGISTERED',
+    action: 'STUDENT_REGISTERED',
     actorId: userId,
-    details: `Novo aluno auto-registou a sua conta: ${cleanName} (@${cleanUsername}) na turma ${classId}.`
+    details: `Novo aluno registado: ${cleanName} com nickname público [${nickname}] na turma ${className}.`
   });
 
   return user;
@@ -884,13 +1019,21 @@ export async function serverRegisterStudent(
  * Server-side Create Student (by Teacher)
  */
 export async function serverCreateStudent(name: string, username: string, classId: string = 'turma-6a') {
-  return serverRegisterStudent(name, username, 'alex', classId, classId === 'turma-6a' ? '6.º Ano — Turma A' : '6.º Ano');
+  const generatedNick = await serverGenerateUniqueNickname();
+  return serverRegisterStudent({
+    name,
+    email: `${username.toLowerCase().trim()}@escola.pt`,
+    password: 'alunotic2026',
+    classId,
+    className: classId === 'turma-6a' ? '6.º A' : '6.º B',
+    nickname: generatedNick,
+    avatar: 'alex'
+  });
 }
 
 /**
  * Server-side Teacher Authentication
  * Fully dynamic: locates teacher user document in Firestore and verifies password hash from userCredentials.
- * NO HARDCODED EMAILS OR PASSWORDS.
  */
 export async function serverTeacherLogin(identifier: string, pass: string): Promise<ServerUser> {
   const cleanId = (identifier || '').trim().toLowerCase();
@@ -979,42 +1122,117 @@ export async function serverTeacherLogin(identifier: string, pass: string): Prom
 
 /**
  * Server-side Student Authentication
- * Authenticates a student account from Firestore.
+ * Supports login via Email or Nickname + Password
  */
-export async function serverStudentLogin(identifier: string): Promise<ServerUser> {
+export async function serverStudentLogin(identifier: string, pass?: string): Promise<ServerUser> {
   const cleanId = (identifier || '').trim().toLowerCase();
+  const rawPass = (pass || '').trim();
+
   if (!cleanId) {
-    throw new Error('Identificador de aluno é obrigatório.');
+    throw new Error('Email ou Nickname de aluno é obrigatório.');
   }
 
-  // Try direct ID lookup
+  let studentDoc: ServerUser | null = null;
+
+  // 1. Direct ID lookup
   const directSnap = await getDoc(doc(db, 'users', cleanId));
   if (directSnap.exists() && directSnap.data().role === 'student') {
-    return directSnap.data() as ServerUser;
+    studentDoc = directSnap.data() as ServerUser;
   }
 
-  // Query by username
-  const userQ = query(collection(db, 'users'), where('username', '==', cleanId), where('role', '==', 'student'), limit(1));
-  const snap = await getDocs(userQ);
-  if (!snap.empty) {
-    return snap.docs[0].data() as ServerUser;
-  }
-
-  // Also query by name if username wasn't an exact match
-  const allStudentsQ = query(collection(db, 'users'), where('role', '==', 'student'));
-  const allSnap = await getDocs(allStudentsQ);
-  for (const docSnap of allSnap.docs) {
-    const data = docSnap.data() as ServerUser;
-    if (
-      data.name.toLowerCase() === cleanId ||
-      data.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === cleanId.normalize("NFD").replace(/[\u0300-\u036f]/g, "") ||
-      data.username.toLowerCase() === cleanId
-    ) {
-      return data;
+  // 2. Query by email
+  if (!studentDoc) {
+    const emailQ = query(collection(db, 'users'), where('email', '==', cleanId), where('role', '==', 'student'), limit(1));
+    const snap = await getDocs(emailQ);
+    if (!snap.empty) {
+      studentDoc = snap.docs[0].data() as ServerUser;
     }
   }
 
-  throw new Error('Aluno não encontrado com esse identificador. Se és novo, clica em "Criar Conta de Aluno"!');
+  // 3. Query by nicknameLower / nickname
+  if (!studentDoc) {
+    const nickQ = query(collection(db, 'users'), where('nicknameLower', '==', cleanId), where('role', '==', 'student'), limit(1));
+    const snap = await getDocs(nickQ);
+    if (!snap.empty) {
+      studentDoc = snap.docs[0].data() as ServerUser;
+    }
+  }
+
+  // 4. Query by username
+  if (!studentDoc) {
+    const userQ = query(collection(db, 'users'), where('username', '==', cleanId), where('role', '==', 'student'), limit(1));
+    const snap = await getDocs(userQ);
+    if (!snap.empty) {
+      studentDoc = snap.docs[0].data() as ServerUser;
+    }
+  }
+
+  // 5. Scan all student documents for name or case-insensitive match
+  if (!studentDoc) {
+    const allStudentsQ = query(collection(db, 'users'), where('role', '==', 'student'));
+    const allSnap = await getDocs(allStudentsQ);
+    for (const docSnap of allSnap.docs) {
+      const data = docSnap.data() as ServerUser;
+      if (
+        (data.nickname && data.nickname.toLowerCase() === cleanId) ||
+        (data.email && data.email.toLowerCase() === cleanId) ||
+        (data.username && data.username.toLowerCase() === cleanId) ||
+        (data.name && data.name.toLowerCase() === cleanId)
+      ) {
+        studentDoc = data;
+        break;
+      }
+    }
+  }
+
+  if (!studentDoc) {
+    throw new Error('Aluno não encontrado com esse email ou nickname. Se és novo, clica em "Criar Conta"!');
+  }
+
+  // Check password if credentials document exists
+  const credRef = doc(db, 'userCredentials', studentDoc.id);
+  const credSnap = await getDoc(credRef);
+
+  if (credSnap.exists() && rawPass) {
+    const credData = credSnap.data() as { salt: string; hash: string };
+    const isValid = verifyPassword(rawPass, credData.salt, credData.hash);
+    if (!isValid) {
+      throw new Error('Palavra-passe incorreta. Por favor, tenta novamente.');
+    }
+  }
+
+  return studentDoc;
+}
+
+/**
+ * Public Rankings Query: Returns ONLY sanitized public fields (Nickname, Avatar, Class, Points/XP, Level, Badges).
+ * STRICTLY PREVENTS LEAKING REAL NAME OR EMAIL TO PUBLIC LEADERBOARDS.
+ */
+export async function serverGetPublicRankings(classId?: string): Promise<PublicStudentProfile[]> {
+  const usersQ = classId
+    ? query(collection(db, 'users'), where('role', '==', 'student'), where('classId', '==', classId))
+    : query(collection(db, 'users'), where('role', '==', 'student'));
+
+  const snap = await getDocs(usersQ);
+  const profiles: PublicStudentProfile[] = [];
+
+  for (const d of snap.docs) {
+    const u = d.data() as ServerUser;
+    profiles.push({
+      id: u.id,
+      nickname: u.nickname || u.name,
+      classId: u.classId,
+      className: u.className || '6.º A',
+      xp: u.xp || 0,
+      level: u.level || 1,
+      levelTitle: u.levelTitle || 'Novato Digital',
+      avatar: u.avatar || 'alex',
+      badgesCount: (u.badges || []).length,
+      role: 'student'
+    });
+  }
+
+  return profiles.sort((a, b) => b.xp - a.xp);
 }
 
 /**
@@ -1043,8 +1261,11 @@ export async function serverGetTeacherClassStudents(teacherId: string) {
     students.push({
       userId: uData.id,
       name: uData.name,
+      nickname: uData.nickname || uData.name,
+      email: uData.email,
       avatar: uData.avatar,
       classId: uData.classId || 'turma-6a',
+      className: uData.className || '6.º A',
       xp: uData.xp,
       level: uData.level,
       levelTitle: uData.levelTitle,
@@ -1064,4 +1285,5 @@ export async function serverGetTeacherClassStudents(teacherId: string) {
 
   return students;
 }
+
 

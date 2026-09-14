@@ -16,6 +16,9 @@ import {
   serverRegisterStudent,
   serverTeacherLogin,
   serverStudentLogin,
+  serverCheckNicknameUnique,
+  serverGenerateUniqueNickname,
+  serverGetPublicRankings,
   serverGetTeacherClassStudents,
   ServerUser
 } from './src/server/firestoreService';
@@ -154,15 +157,39 @@ async function startServer() {
     }
   });
 
-  // Student Login
+  // Generate unique random nickname
+  app.get('/api/auth/generate-nickname', async (_req: Request, res: Response) => {
+    try {
+      const nickname = await serverGenerateUniqueNickname();
+      res.json({ success: true, nickname });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Erro ao gerar nickname.' });
+    }
+  });
+
+  // Check if nickname is unique
+  app.post('/api/auth/check-nickname', async (req: Request, res: Response) => {
+    try {
+      const { nickname } = req.body;
+      if (!nickname) {
+        return res.status(400).json({ available: false, error: 'Nickname é obrigatório.' });
+      }
+      const result = await serverCheckNicknameUnique(nickname);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Erro ao verificar nickname.' });
+    }
+  });
+
+  // Student Login (Accepts Email or Nickname + Password)
   app.post('/api/auth/student-login', authLimiter, async (req: Request, res: Response) => {
     try {
-      const { identifier } = req.body;
+      const { identifier, password } = req.body;
       if (!identifier) {
-        return res.status(400).json({ error: 'Identificador de aluno é obrigatório.' });
+        return res.status(400).json({ error: 'Email ou Nickname de aluno é obrigatório.' });
       }
 
-      const student = await serverStudentLogin(identifier);
+      const student = await serverStudentLogin(identifier, password);
 
       const session = createSession({
         id: student.id,
@@ -183,7 +210,9 @@ async function startServer() {
         success: true,
         user: {
           id: student.id,
+          nickname: student.nickname || student.name,
           username: student.username,
+          email: student.email,
           name: student.name,
           role: 'student',
           avatar: student.avatar,
@@ -197,25 +226,27 @@ async function startServer() {
         sessionId: session.id
       });
     } catch (err: any) {
-      res.status(401).json({ error: err.message || 'Aluno não encontrado.' });
+      res.status(401).json({ error: err.message || 'Aluno não encontrado ou credenciais incorretas.' });
     }
   });
 
-  // Student Self-Registration (Aluno cria a sua própria conta)
+  // Student Self-Registration (Criar Conta de Aluno com Nome, Email, Palavra-passe, Turma, Nickname, Avatar)
   app.post('/api/auth/student-register', authLimiter, async (req: Request, res: Response) => {
     try {
-      const { name, username, avatar, classId, className } = req.body;
-      if (!name || !username) {
-        return res.status(400).json({ error: 'Nome e nome de utilizador são obrigatórios.' });
+      const { name, email, password, classId, className, nickname, avatar } = req.body;
+      if (!name || !email || !password) {
+        return res.status(400).json({ error: 'Nome real, email e palavra-passe são obrigatórios.' });
       }
 
-      const newStudent = await serverRegisterStudent(
+      const newStudent = await serverRegisterStudent({
         name,
-        username,
-        avatar || 'alex',
-        classId || 'turma-6a',
-        className || '6.º Ano — Turma A'
-      );
+        email,
+        password,
+        classId: classId || 'turma-6a',
+        className: className || '6.º A',
+        nickname,
+        avatar
+      });
 
       const session = createSession({
         id: newStudent.id,
@@ -236,7 +267,9 @@ async function startServer() {
         success: true,
         user: {
           id: newStudent.id,
+          nickname: newStudent.nickname,
           username: newStudent.username,
+          email: newStudent.email,
           name: newStudent.name,
           role: 'student',
           avatar: newStudent.avatar,
@@ -410,8 +443,19 @@ async function startServer() {
   });
 
   // ------------------------------------------------------------------
-  // REST API: USERS & PROGRESS
+  // REST API: USERS & PROGRESS & PUBLIC RANKINGS
   // ------------------------------------------------------------------
+  // Public Rankings Endpoint (Returns Nicknames & Stats ONLY - No Private Real Names or Emails)
+  app.get('/api/rankings', async (req: Request, res: Response) => {
+    try {
+      const classId = req.query.classId as string | undefined;
+      const rankings = await serverGetPublicRankings(classId);
+      res.json({ rankings });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Erro ao carregar ranking público.' });
+    }
+  });
+
   app.get('/api/users', async (_req, res) => {
     try {
       const snap = await getDocs(collection(db, 'users'));

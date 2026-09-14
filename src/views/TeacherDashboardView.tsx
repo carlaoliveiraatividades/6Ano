@@ -31,7 +31,9 @@ import { UserAvatar } from '../components/common/UserAvatar';
 interface StudentData {
   userId: string;
   name: string;
-  avatar?: string;
+  nickname?: string;
+  email?: string;
+  avatar?: any;
   xp?: number;
   level?: number;
   levelTitle?: string;
@@ -777,13 +779,20 @@ export const TeacherDashboardView: React.FC = () => {
                   {/* Top student header */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <UserAvatar name={st.name} avatarId={st.avatar || 'alex'} size="lg" />
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 overflow-hidden shrink-0">
+                        <UserAvatar name={st.nickname || st.name} avatar={st.avatar} size="md" />
+                      </div>
                       <div>
-                        <h3 className="font-display font-bold text-slate-900 text-sm">
-                          {st.name}
+                        <h3 className="font-display font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                          <span>{st.name}</span>
+                          {st.nickname && (
+                            <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                              @{st.nickname}
+                            </span>
+                          )}
                         </h3>
                         <p className="text-[11px] text-slate-500 font-mono">
-                          Nível {st.level || 1} • {st.levelTitle || 'Novato Digital'}
+                          Nível {st.level || 1} • {st.levelTitle || 'Novato Digital'} {st.email && `• ${st.email}`}
                         </p>
                       </div>
                     </div>

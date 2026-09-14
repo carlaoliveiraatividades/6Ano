@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, 
   Lock, 
@@ -6,35 +6,40 @@ import {
   ArrowRight, 
   CheckCircle2, 
   AlertCircle, 
-  Database,
-  GraduationCap,
-  KeyRound,
+  Eye, 
+  EyeOff,
+  Dices,
+  Palette,
+  ShieldCheck,
+  School,
+  Mail,
+  UserCheck,
+  RefreshCw,
   Compass,
-  UserPlus,
-  LogIn,
-  Eye,
-  School
+  GraduationCap
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import { UserAvatar } from '../components/common/UserAvatar';
-
-const AVATAR_OPTIONS = [
-  { id: 'alex', label: 'Explorador', emoji: '🧑‍🚀' },
-  { id: 'leonor', label: 'Cientista', emoji: '👧' },
-  { id: 'tiago', label: 'Programador', emoji: '👦' },
-  { id: 'beatriz', label: 'Investigadora', emoji: '👩‍🔬' },
-  { id: 'duarte', label: 'Gamer', emoji: '🧑‍💻' },
-  { id: 'ines', label: 'Criativa', emoji: '👩‍🎨' },
-  { id: 'miguel', label: 'Músico', emoji: '🧑‍🎤' },
-  { id: 'sofia', label: 'Detetive', emoji: '👧' }
-];
+import { AvatarCreatorModal } from '../components/common/AvatarCreatorModal';
+import { AvatarConfig } from '../types';
+import { 
+  generateRandomNickname, 
+  generateDeterministicAvatar, 
+  generateRandomAvatar 
+} from '../utils/avatarUtils';
 
 const CLASS_OPTIONS = [
-  { id: 'turma-6a', name: 'Turma 6.º A' },
-  { id: 'turma-6b', name: 'Turma 6.º B' },
-  { id: 'turma-6c', name: 'Turma 6.º C' },
-  { id: 'turma-6d', name: 'Turma 6.º D' }
+  { id: 'turma-6a', name: '6.º A' },
+  { id: 'turma-6b', name: '6.º B' },
+  { id: 'turma-6c', name: '6.º C' },
+  { id: 'turma-6d', name: '6.º D' },
+  { id: 'turma-6e', name: '6.º E' },
+  { id: 'turma-6f', name: '6.º F' },
+  { id: 'turma-5a', name: '5.º A' },
+  { id: 'turma-5b', name: '5.º B' },
+  { id: 'turma-5c', name: '5.º C' },
+  { id: 'turma-5d', name: '5.º D' }
 ];
 
 export const LoginView: React.FC = () => {
@@ -43,29 +48,86 @@ export const LoginView: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'login' | 'register' | 'visitor'>('login');
 
-  // Login form state
+  // Login Form State
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
-  // Register form state
+  // Register Form State
   const [regName, setRegName] = useState('');
-  const [regUsername, setRegUsername] = useState('');
-  const [regAvatar, setRegAvatar] = useState('alex');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
   const [regClassId, setRegClassId] = useState('turma-6a');
+  const [regNickname, setRegNickname] = useState('');
+  const [regAvatar, setRegAvatar] = useState<AvatarConfig>(() => generateRandomAvatar());
+  const [isAvatarCustomizedByUser, setIsAvatarCustomizedByUser] = useState(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
 
+  // Status & Validation
   const [loading, setLoading] = useState(false);
+  const [isGeneratingNick, setIsGeneratingNick] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isTeacherSelected = 
-    identifier.toLowerCase().includes('carla') || 
-    identifier.toLowerCase().includes('prof') ||
-    identifier.toLowerCase() === 'imaginebycarla2023@gmail.com';
+  // Initialize unique nickname on mount or tab change
+  useEffect(() => {
+    if (activeTab === 'register' && !regNickname) {
+      handleShuffleNickname();
+    }
+  }, [activeTab]);
 
-  // Handle Login
+  // Shuffle nickname from server or local generator
+  const handleShuffleNickname = async () => {
+    setIsGeneratingNick(true);
+    try {
+      const res = await fetch('/api/auth/generate-nickname');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.nickname) {
+          setRegNickname(data.nickname);
+          // If user hasn't manually customized their avatar, update deterministic avatar
+          if (!isAvatarCustomizedByUser) {
+            setRegAvatar(generateDeterministicAvatar(data.nickname));
+          }
+          setIsGeneratingNick(false);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Fallback to local nickname generation:', e);
+    }
+
+    const fallbackNick = generateRandomNickname();
+    setRegNickname(fallbackNick);
+    if (!isAvatarCustomizedByUser) {
+      setRegAvatar(generateDeterministicAvatar(fallbackNick));
+    }
+    setIsGeneratingNick(false);
+  };
+
+  // Shuffle avatar manually
+  const handleShuffleAvatar = () => {
+    const randomAvatar = generateRandomAvatar();
+    setRegAvatar(randomAvatar);
+    setIsAvatarCustomizedByUser(true);
+  };
+
+  // Handle avatar save from modal
+  const handleSaveAvatar = (savedConfig: AvatarConfig) => {
+    setRegAvatar(savedConfig);
+    setIsAvatarCustomizedByUser(true);
+    addToast({
+      title: 'Avatar Atualizado! 🎨',
+      message: 'O teu novo visual está pronto.',
+      type: 'success'
+    });
+  };
+
+  // Handle Login Submit
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim()) {
-      setError('Por favor, escreve o teu nome, utilizador ou email.');
+      setError('Por favor, escreve o teu Email ou Nickname de aluno.');
       return;
     }
 
@@ -73,7 +135,7 @@ export const LoginView: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await unifiedLogin(identifier, password);
+      const res = await unifiedLogin(identifier.trim(), password);
       if (res.success) {
         if (res.role === 'teacher') {
           addToast({
@@ -84,8 +146,8 @@ export const LoginView: React.FC = () => {
           setCurrentView('teacher');
         } else {
           addToast({
-            title: 'Sessão Iniciada!',
-            message: `Bem-vindo de volta à Missão TIC 6.º Ano.`,
+            title: 'Sessão Iniciada! 🚀',
+            message: 'Bem-vindo de volta à Missão TIC 6.º Ano.',
             type: 'success'
           });
           setCurrentView('dashboard');
@@ -100,15 +162,35 @@ export const LoginView: React.FC = () => {
     }
   };
 
-  // Handle Register
+  // Handle Register Submit
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regName.trim() || regName.trim().length < 2) {
-      setError('Por favor, introduz o teu nome completo (mínimo 2 letras).');
+
+    // 1. Validate Name
+    const cleanName = regName.trim();
+    if (!cleanName || cleanName.length < 2) {
+      setError('Por favor, indica o teu nome real completo (mínimo 2 letras).');
       return;
     }
-    if (!regUsername.trim() || regUsername.trim().length < 2) {
-      setError('Por favor, escolhe um nome de utilizador (ex: maria.s ou tiago22).');
+
+    // 2. Normalize and Validate Email
+    const cleanEmail = regEmail.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+      setError('Por favor, indica um endereço de email válido (ex: aluno@escola.pt).');
+      return;
+    }
+
+    // 3. Validate Password
+    if (!regPassword || regPassword.length < 6) {
+      setError('A palavra-passe deve ter pelo menos 6 caracteres.');
+      return;
+    }
+
+    // 4. Validate Nickname
+    const cleanNickname = regNickname.trim();
+    if (!cleanNickname || cleanNickname.length < 3) {
+      setError('O nickname deve conter pelo menos 3 caracteres.');
       return;
     }
 
@@ -117,26 +199,28 @@ export const LoginView: React.FC = () => {
 
     try {
       const selectedClass = CLASS_OPTIONS.find(c => c.id === regClassId);
-      const res = await registerStudent(
-        regName.trim(),
-        regUsername.trim(),
-        regAvatar,
-        regClassId,
-        selectedClass?.name || '6.º Ano — Turma A'
-      );
+      const res = await registerStudent({
+        name: cleanName,
+        email: cleanEmail,
+        password: regPassword,
+        classId: regClassId,
+        className: selectedClass?.name || '6.º A',
+        nickname: cleanNickname,
+        avatar: regAvatar
+      });
 
       if (res.success) {
         addToast({
           title: `Conta Criada com Sucesso! 🚀`,
-          message: `Bem-vindo à Missão TIC, ${regName.trim()}! Começaste com os Mundos 1 e 2 desbloqueados.`,
+          message: `Bem-vindo à Missão TIC, ${cleanNickname}! O teu registo foi concluído.`,
           type: 'success'
         });
         setCurrentView('dashboard');
       } else {
-        setError(res.error || 'Erro ao criar conta. Tenta novamente com outro utilizador.');
+        setError(res.error || 'Erro ao criar conta. Tenta novamente.');
       }
     } catch (err: any) {
-      setError('Erro ao comunicar com o servidor. Tenta novamente.');
+      setError(err.message || 'Erro ao comunicar com o servidor. Tenta novamente.');
     } finally {
       setLoading(false);
     }
@@ -151,7 +235,7 @@ export const LoginView: React.FC = () => {
       if (res.success) {
         addToast({
           title: 'Modo Visitante Ativado 🌟',
-          message: 'Podes explorar livremente todos os 5 mundos, simuladores e conteúdos.',
+          message: 'Podes explorar livremente todos os 5 mundos e atividades.',
           type: 'info'
         });
         setCurrentView('dashboard');
@@ -184,7 +268,7 @@ export const LoginView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5">
-          {/* Top Header Quick Visitor Button */}
+          {/* Quick Visitor Button in Header */}
           <button
             id="top-btn-visitor-access"
             type="button"
@@ -196,422 +280,408 @@ export const LoginView: React.FC = () => {
             <Eye className="w-3.5 h-3.5 text-amber-400" />
             <span>Acesso a Visitantes</span>
           </button>
-
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-medium">
-            <Database className="w-3.5 h-3.5" />
-            <span>Firestore</span>
-          </span>
         </div>
       </div>
 
-      {/* Main Single Card with Tabs */}
-      <div className="max-w-2xl w-full mx-auto my-6 sm:my-8 bg-slate-900/90 border border-slate-800/90 rounded-3xl p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
-        
-        {/* Quick Visitor Highlight Banner at Top of Card */}
-        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-amber-950/60 via-indigo-950/60 to-blue-950/60 border border-amber-500/40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
-          <div className="flex items-center gap-3 text-left">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300 shrink-0 text-base">
-              🌟
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-extrabold text-amber-200 uppercase tracking-wider">
-                  Acesso Rápido a Visitantes
-                </span>
-                <span className="px-2 py-0.5 rounded-md bg-amber-400/20 text-amber-300 text-[10px] font-bold">
-                  1 Clique
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-300 mt-0.5">
-                Queres apenas conhecer a plataforma? Explora os 5 Mundos e simuladores sem criar conta.
-              </p>
-            </div>
-          </div>
-
-          <button
-            id="hero-btn-visitor-access"
-            type="button"
-            onClick={handleGuestAccess}
-            disabled={loading}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95 shrink-0"
-          >
-            <Compass className="w-4 h-4 text-slate-950" />
-            <span>Entrar como Visitante</span>
-          </button>
-        </div>
-
-        {/* Intro */}
-        <div className="text-center max-w-xl mx-auto mb-6">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-semibold mb-3">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Portal Escolar e Educativo</span>
-          </div>
-          <h1 className="font-display font-black text-2xl sm:text-3xl text-white tracking-tight">
-            {activeTab === 'login' ? 'Entrar na Missão TIC' : activeTab === 'register' ? 'Criar Conta de Aluno' : 'Acesso para Visitantes'}
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-2">
-            {activeTab === 'login' 
-              ? 'Inicia sessão com o teu utilizador de aluno ou credenciais da docente.' 
-              : activeTab === 'register'
-              ? 'Regista a tua conta pessoal de aluno para guardares o teu progresso, XP e medalhas.'
-              : 'Exploração livre de todos os conteúdos e ferramentas pedagógicas sem necessidade de registo.'}
-          </p>
-        </div>
-
-        {/* 3-Tab Switcher */}
-        <div className="grid grid-cols-3 bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800 max-w-lg mx-auto mb-6 gap-1">
-          <button
-            id="tab-btn-login"
-            type="button"
-            onClick={() => {
-              setActiveTab('login');
-              setError(null);
-            }}
-            className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeTab === 'login'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900/50'
-            }`}
-          >
-            <LogIn className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Entrar</span>
-          </button>
-
-          <button
-            id="tab-btn-register"
-            type="button"
-            onClick={() => {
-              setActiveTab('register');
-              setError(null);
-            }}
-            className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeTab === 'register'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900/50'
-            }`}
-          >
-            <UserPlus className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Criar Conta</span>
-          </button>
-
-          <button
-            id="tab-btn-visitor"
-            type="button"
-            onClick={() => {
-              setActiveTab('visitor');
-              setError(null);
-            }}
-            className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeTab === 'visitor'
-                ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/30'
-                : 'text-amber-300/80 hover:text-amber-200 hover:bg-slate-900/50'
-            }`}
-          >
-            <Eye className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Visitante</span>
-          </button>
-        </div>
-
-        {/* Error Banner */}
-        {error && (
-          <div className="max-w-md mx-auto mb-5 p-3.5 rounded-2xl bg-rose-950/70 border border-rose-600/60 text-rose-200 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in">
-            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* TAB 1: LOGIN FORM */}
-        {activeTab === 'login' && (
-          <form onSubmit={handleLoginSubmit} className="max-w-md mx-auto space-y-4">
-            {/* Identifier Input */}
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                Utilizador, Nome ou Email
-              </label>
-              <div className="relative">
-                <UserIcon className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  id="login-input-identifier"
-                  type="text"
-                  value={identifier}
-                  onChange={e => setIdentifier(e.target.value)}
-                  placeholder="ex: Alex Ramos ou o teu nome de utilizador"
-                  required
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* Password Input (Required for teacher, optional for students) */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold text-slate-300">
-                  Palavra-passe
-                </label>
-                {isTeacherSelected && (
-                  <button
-                    type="button"
-                    onClick={() => setPassword('carlamso')}
-                    className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 hover:underline cursor-pointer"
-                  >
-                    Preencher demo (carlamso)
-                  </button>
-                )}
-              </div>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  id="login-input-password"
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder={isTeacherSelected ? "Palavra-passe da Prof.ª Carla" : "Palavra-passe (apenas docente)"}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1.5">
-                💡 <strong>Alunos</strong> acedem diretamente com o seu nome ou utilizador. A palavra-passe é apenas exigida para a <strong>Prof.ª Carla</strong> (<span className="font-mono text-slate-300">carlamso</span>).
-              </p>
-            </div>
-
-            {/* Submit Button */}
+      {/* Main Container */}
+      <div className="max-w-3xl w-full mx-auto my-6">
+        <div className="bg-slate-900/80 backdrop-blur-md rounded-3xl border border-slate-700/60 shadow-2xl overflow-hidden">
+          
+          {/* Navigation Tabs */}
+          <div className="flex border-b border-slate-700/60 bg-slate-950/40 p-1.5">
             <button
-              id="btn-login-submit"
-              type="submit"
-              disabled={loading || !identifier.trim()}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-95 disabled:opacity-50 text-white rounded-xl font-bold text-xs sm:text-sm shadow-lg shadow-blue-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <span>A verificar credenciais...</span>
-              ) : (
-                <>
-                  <span>Entrar na Missão TIC</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-        )}
-
-        {/* TAB 2: REGISTER FORM (Aluno cria a sua conta) */}
-        {activeTab === 'register' && (
-          <form onSubmit={handleRegisterSubmit} className="max-w-md mx-auto space-y-4">
-            {/* Full Name */}
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                Nome Completo do Aluno
-              </label>
-              <div className="relative">
-                <UserIcon className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  id="reg-input-name"
-                  type="text"
-                  value={regName}
-                  onChange={e => {
-                    setRegName(e.target.value);
-                    if (!regUsername) {
-                      // Suggest username automatically
-                      const suggested = e.target.value
-                        .toLowerCase()
-                        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                        .replace(/\s+/g, '.')
-                        .replace(/[^a-z0-9.]/g, '');
-                      setRegUsername(suggested);
-                    }
-                  }}
-                  placeholder="ex: Matilde Pereira"
-                  required
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* Username */}
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                Nome de Utilizador / Alcunha
-              </label>
-              <div className="relative">
-                <span className="text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-sm">@</span>
-                <input
-                  id="reg-input-username"
-                  type="text"
-                  value={regUsername}
-                  onChange={e => setRegUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''))}
-                  placeholder="ex: matilde.p"
-                  required
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
-                />
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Usa letras, números ou pontos para o teu utilizador de acesso.
-              </p>
-            </div>
-
-            {/* Class Selection */}
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                Turma do 6.º Ano
-              </label>
-              <div className="relative">
-                <School className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <select
-                  id="reg-select-class"
-                  value={regClassId}
-                  onChange={e => setRegClassId(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                >
-                  {CLASS_OPTIONS.map(c => (
-                    <option key={c.id} value={c.id} className="bg-slate-900 text-white">
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Avatar Selector */}
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-2">
-                Escolhe o teu Avatar
-              </label>
-              <div className="grid grid-cols-4 gap-2">
-                {AVATAR_OPTIONS.map(av => (
-                  <button
-                    key={av.id}
-                    type="button"
-                    onClick={() => setRegAvatar(av.id)}
-                    className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
-                      regAvatar === av.id
-                        ? 'bg-blue-600/20 border-blue-500 ring-2 ring-blue-500/50'
-                        : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <UserAvatar avatarId={av.id} size="sm" />
-                    <span className="text-[10px] text-slate-300 font-medium truncate w-full">
-                      {av.label}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Submit Register */}
-            <button
-              id="btn-register-submit"
-              type="submit"
-              disabled={loading || !regName.trim() || !regUsername.trim()}
-              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white rounded-xl font-bold text-xs sm:text-sm shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center justify-center gap-2 mt-2"
-            >
-              {loading ? (
-                <span>A criar conta no Firestore...</span>
-              ) : (
-                <>
-                  <span>Criar Conta e Começar a Missão 🚀</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-        )}
-
-        {/* TAB 3: VISITOR ACCESS VIEW */}
-        {activeTab === 'visitor' && (
-          <div className="max-w-md mx-auto space-y-5 animate-in fade-in">
-            <div className="p-5 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-left space-y-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-amber-300">
-                  <Compass className="w-4 h-4" />
-                </div>
-                <h3 className="text-sm font-bold text-white">
-                  O que podes fazer no Modo Visitante?
-                </h3>
-              </div>
-
-              <ul className="text-xs text-slate-300 space-y-2 pl-1">
-                <li className="flex items-start gap-2">
-                  <span className="text-amber-400 font-bold">✓</span>
-                  <span><strong>Todos os 5 Mundos Desbloqueados:</strong> Guardião, Detetive, Laboratório, Oficina e Cidadão Digital.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-amber-400 font-bold">✓</span>
-                  <span><strong>Simuladores Interativos:</strong> Testador de Passwords, Simulador de Phishing, Pesquisa Booleana, Construtor de Fórmulas e mais.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-amber-400 font-bold">✓</span>
-                  <span><strong>Desafios & Quizzes:</strong> Experimenta a progressão pedagógica sem necessitar de criar conta.</span>
-                </li>
-              </ul>
-            </div>
-
-            <button
-              id="btn-visitor-tab-start"
+              id="tab-login"
               type="button"
-              onClick={handleGuestAccess}
-              disabled={loading}
-              className="w-full py-4 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:brightness-110 active:scale-95 disabled:opacity-50 text-slate-950 rounded-xl font-black text-sm shadow-xl shadow-amber-500/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+              onClick={() => { setActiveTab('login'); setError(null); }}
+              className={`flex-1 py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'login'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
             >
-              {loading ? (
-                <span>A carregar modo visitante...</span>
-              ) : (
-                <>
-                  <Compass className="w-5 h-5 text-slate-950" />
-                  <span>Entrar Agora como Visitante 🚀</span>
-                </>
-              )}
+              <UserCheck className="w-4 h-4" />
+              <span>Iniciar Sessão</span>
+            </button>
+
+            <button
+              id="tab-register"
+              type="button"
+              onClick={() => { setActiveTab('register'); setError(null); }}
+              className={`flex-1 py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'register'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Criar Conta de Aluno</span>
+            </button>
+
+            <button
+              id="tab-visitor"
+              type="button"
+              onClick={() => { setActiveTab('visitor'); setError(null); }}
+              className={`flex-1 py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'visitor'
+                  ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/25'
+                  : 'text-amber-300/80 hover:text-amber-200 hover:bg-amber-950/30'
+              }`}
+            >
+              <Compass className="w-4 h-4" />
+              <span>Visitante</span>
             </button>
           </div>
-        )}
 
-        {/* Divider for Visitor Mode */}
-        <div className="relative my-8 text-center max-w-md mx-auto">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-slate-800"></div>
+          {/* Form Area */}
+          <div className="p-6 sm:p-8">
+            {error && (
+              <div className="mb-6 p-4 rounded-2xl bg-rose-950/80 border border-rose-600/50 text-rose-200 text-xs sm:text-sm flex items-start gap-3 animate-in fade-in">
+                <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                <div className="flex-1 font-medium">{error}</div>
+              </div>
+            )}
+
+            {/* TAB 1: INICIAR SESSÃO */}
+            {activeTab === 'login' && (
+              <form onSubmit={handleLoginSubmit} className="space-y-5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                    Email, Nickname ou Nome de Aluno
+                  </label>
+                  <div className="relative">
+                    <UserIcon className="w-5 h-5 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      id="login-identifier"
+                      type="text"
+                      value={identifier}
+                      onChange={e => setIdentifier(e.target.value)}
+                      placeholder="Ex: aluno@escola.pt ou Panda_Feliz_701"
+                      required
+                      className="w-full pl-12 pr-4 py-3 rounded-2xl bg-slate-950/70 border border-slate-700/80 text-white placeholder-slate-500 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                    Palavra-passe
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-5 h-5 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      id="login-password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="Insere a tua palavra-passe (mínimo 6 carateres)"
+                      className="w-full pl-12 pr-12 py-3 rounded-2xl bg-slate-950/70 border border-slate-700/80 text-white placeholder-slate-500 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  id="btn-login-submit"
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3.5 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-extrabold text-sm shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>A validar credenciais...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Entrar na Missão TIC</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+
+                {/* Quick Demo Access Bar */}
+                <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+                  <span className="font-medium">Acesso Rápido de Demonstração:</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setIdentifier('aluno-alex'); setPassword('alunotic2026'); }}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold transition-all cursor-pointer"
+                    >
+                      👦 Aluno Alex
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setIdentifier('imaginebycarla2023@gmail.com'); setPassword('carlamso'); }}
+                      className="px-3 py-1.5 rounded-xl bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-200 font-bold transition-all cursor-pointer"
+                    >
+                      👩‍🏫 Prof.ª Carla
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+
+            {/* TAB 2: CRIAR CONTA DE ALUNO (REGISTO COMPLETO) */}
+            {activeTab === 'register' && (
+              <form onSubmit={handleRegisterSubmit} className="space-y-5">
+                
+                {/* Privacy Badge Notice */}
+                <div className="p-3.5 rounded-2xl bg-blue-950/40 border border-blue-800/50 flex items-center gap-3 text-xs text-blue-200">
+                  <ShieldCheck className="w-5 h-5 text-blue-400 shrink-0" />
+                  <div>
+                    <strong className="text-white">Privacidade dos Alunos:</strong> O teu <strong>Nome Real</strong> e <strong>Email</strong> são privados (visíveis apenas para o professor). Os teus colegas no ranking verão apenas o teu <strong>Nickname</strong> e <strong>Avatar</strong>.
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Nome Real (Privado) */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center justify-between">
+                      <span>Nome Real do Aluno</span>
+                      <span className="text-[10px] text-amber-400 font-medium px-2 py-0.5 rounded-full bg-amber-950/60 border border-amber-600/40">🔒 Privado</span>
+                    </label>
+                    <div className="relative">
+                      <UserIcon className="w-5 h-5 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        id="reg-name"
+                        type="text"
+                        value={regName}
+                        onChange={e => setRegName(e.target.value)}
+                        placeholder="Ex: Maria Ramos Silva"
+                        required
+                        className="w-full pl-12 pr-4 py-3 rounded-2xl bg-slate-950/70 border border-slate-700/80 text-white placeholder-slate-500 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      />
+                    </div>
+                    <span className="text-[11px] text-slate-400 mt-1 block">Para identificação escolar com a professora.</span>
+                  </div>
+
+                  {/* Email (Privado & Normalizado) */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center justify-between">
+                      <span>Endereço de Email</span>
+                      <span className="text-[10px] text-amber-400 font-medium px-2 py-0.5 rounded-full bg-amber-950/60 border border-amber-600/40">🔒 Privado</span>
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-5 h-5 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        id="reg-email"
+                        type="email"
+                        value={regEmail}
+                        onChange={e => setRegEmail(e.target.value)}
+                        placeholder="Ex: maria.silva@escola.pt"
+                        required
+                        className="w-full pl-12 pr-4 py-3 rounded-2xl bg-slate-950/70 border border-slate-700/80 text-white placeholder-slate-500 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      />
+                    </div>
+                    <span className="text-[11px] text-slate-400 mt-1 block">Utilizado para iniciar sessão e recuperar a conta.</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Palavra-passe */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                      Palavra-passe (mínimo 6 carateres)
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-5 h-5 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        id="reg-password"
+                        type={showRegPassword ? 'text' : 'password'}
+                        value={regPassword}
+                        onChange={e => setRegPassword(e.target.value)}
+                        placeholder="Palavra-passe segura"
+                        required
+                        minLength={6}
+                        className="w-full pl-12 pr-12 py-3 rounded-2xl bg-slate-950/70 border border-slate-700/80 text-white placeholder-slate-500 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegPassword(!showRegPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                      >
+                        {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Turma (Lista Selecionável) */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <School className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Turma</span>
+                    </label>
+                    <select
+                      id="reg-class"
+                      value={regClassId}
+                      onChange={e => setRegClassId(e.target.value)}
+                      className="w-full px-4 py-3 rounded-2xl bg-slate-950/70 border border-slate-700/80 text-white text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
+                    >
+                      {CLASS_OPTIONS.map(c => (
+                        <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Nickname e Avatar Box (Públicos) */}
+                <div className="p-5 rounded-2xl bg-slate-950/60 border border-slate-700/80 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-display font-bold text-white text-sm flex items-center gap-2">
+                        <span>Identidade Pública no Jogo</span>
+                        <span className="text-[10px] text-emerald-400 font-medium px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-600/40">🌍 Público</span>
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Este é o Nickname e Avatar que os teus colegas e professores verão no Ranking.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center gap-5">
+                    {/* Avatar Preview + Controls */}
+                    <div className="flex flex-col items-center gap-2 shrink-0">
+                      <div className="relative group cursor-pointer" onClick={() => setIsAvatarModalOpen(true)}>
+                        <div className="w-20 h-20 rounded-2xl border-2 border-blue-500/60 shadow-lg shadow-blue-500/20 overflow-hidden bg-slate-800 transition-transform group-hover:scale-105">
+                          <UserAvatar avatar={regAvatar} name={regNickname} size="lg" className="w-full h-full" />
+                        </div>
+                        <div className="absolute inset-0 bg-blue-600/40 opacity-0 group-hover:opacity-100 rounded-2xl flex items-center justify-center transition-opacity">
+                          <Palette className="w-6 h-6 text-white" />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          id="btn-customize-avatar"
+                          type="button"
+                          onClick={() => setIsAvatarModalOpen(true)}
+                          className="px-2.5 py-1 rounded-xl bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/40 text-blue-300 text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <Palette className="w-3 h-3" />
+                          <span>Personalizar</span>
+                        </button>
+
+                        <button
+                          id="btn-shuffle-avatar"
+                          type="button"
+                          onClick={handleShuffleAvatar}
+                          className="px-2 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                          title="Baralhar novo visual de avatar"
+                        >
+                          <Dices className="w-3 h-3 text-amber-400" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Nickname Input & Generator */}
+                    <div className="flex-1 w-full space-y-2">
+                      <label className="block text-xs font-bold text-slate-300">
+                        Nickname Único de Aluno
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          id="reg-nickname"
+                          type="text"
+                          value={regNickname}
+                          onChange={e => setRegNickname(e.target.value)}
+                          placeholder="Ex: Panda_Feliz_701"
+                          required
+                          className="flex-1 px-4 py-2.5 rounded-2xl bg-slate-900 border border-slate-700 text-white font-mono font-bold text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 transition-all"
+                        />
+                        <button
+                          id="btn-shuffle-nickname"
+                          type="button"
+                          onClick={handleShuffleNickname}
+                          disabled={isGeneratingNick}
+                          className="px-4 py-2.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 hover:scale-105 active:scale-95 disabled:opacity-50"
+                          title="Gerar outro nickname único"
+                        >
+                          <Dices className={`w-4 h-4 text-amber-400 ${isGeneratingNick ? 'animate-spin' : ''}`} />
+                          <span className="hidden sm:inline">Baralhar Outro Nickname</span>
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        O nickname é gerado automaticamente de forma única e sem espaços. Podes clicar em Baralhar sempre que quiseres!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  id="btn-register-submit"
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.99] text-white font-extrabold text-sm shadow-xl shadow-blue-500/30 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>A criar a tua conta de aluno...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Concluir Registo e Entrar na Missão 🚀</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+
+            {/* TAB 3: VISITANTE */}
+            {activeTab === 'visitor' && (
+              <div className="text-center py-4 space-y-6">
+                <div className="w-16 h-16 rounded-3xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center mx-auto text-2xl shadow-lg shadow-amber-500/20">
+                  <Compass className="w-8 h-8 text-amber-400" />
+                </div>
+                <div className="max-w-md mx-auto">
+                  <h3 className="font-display font-black text-xl text-white">
+                    Explorar em Modo Visitante
+                  </h3>
+                  <p className="text-sm text-slate-300 mt-2">
+                    Não precisas de criar conta nem indicar email para conhecer a Missão TIC. Podes aceder a todos os 5 Mundos, realizar simuladores e experimentar os questionários interativos.
+                  </p>
+                </div>
+
+                <button
+                  id="btn-visitor-start"
+                  type="button"
+                  onClick={handleGuestAccess}
+                  disabled={loading}
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 font-black text-sm shadow-lg shadow-amber-500/30 inline-flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Eye className="w-4 h-4" />
+                  <span>Entrar Imediatamente como Visitante</span>
+                </button>
+              </div>
+            )}
           </div>
-          <span className="relative px-3 bg-slate-900 text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            Ou explora sem registo
-          </span>
         </div>
-
-        {/* VISITOR MODE CARD / BUTTON */}
-        <div className="max-w-md mx-auto bg-gradient-to-r from-blue-950/40 via-indigo-950/40 to-slate-950/40 border border-blue-500/30 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/40 flex items-center justify-center text-blue-300 shrink-0">
-              <Eye className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-xs sm:text-sm font-bold text-white">
-                Acesso para Visitantes
-              </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Explora livremente os 5 Mundos, simuladores e desafios sem criar conta.
-              </p>
-            </div>
-          </div>
-
-          <button
-            id="btn-guest-access"
-            type="button"
-            onClick={handleGuestAccess}
-            disabled={loading}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white text-xs font-bold transition-all hover:border-blue-400 cursor-pointer whitespace-nowrap flex items-center justify-center gap-1.5 shadow-sm"
-          >
-            <Compass className="w-4 h-4 text-blue-400" />
-            <span>Explorar como Visitante</span>
-          </button>
-        </div>
-
       </div>
 
-      {/* Footer Discreet Link and Copyright */}
-      <div className="max-w-4xl w-full mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400 pt-4 border-t border-slate-800/60">
-        <div>
-          Missão TIC • Disciplina de TIC do 6.º Ano de Escolaridade • Portugal
-        </div>
-        <div className="text-[11px] text-slate-400">
-          Prof.ª Carla • Turma 6.º A
-        </div>
+      {/* Footer Info */}
+      <div className="max-w-4xl w-full mx-auto text-center text-xs text-slate-500 py-2">
+        Missão TIC — 6.º Ano do Ensino Básico • Plataforma Curricular e Pedagógica
       </div>
+
+      {/* Avatar Customizer Modal */}
+      {isAvatarModalOpen && (
+        <AvatarCreatorModal
+          isOpen={isAvatarModalOpen}
+          initialConfig={regAvatar}
+          onSave={handleSaveAvatar}
+          onClose={() => setIsAvatarModalOpen(false)}
+        />
+      )}
     </div>
   );
 };
