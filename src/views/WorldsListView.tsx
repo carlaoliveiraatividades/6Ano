@@ -47,10 +47,14 @@ export const WorldsListView: React.FC = () => {
           const Icon = iconMap[w.id] || Shield;
           const bg = bgMap[w.color] || 'bg-blue-600';
 
-          // Unlock rules: Mundo 1 is always unlocked.
-          // Mundo 2 is unlocked initially for demo.
-          // Mundo 3+ unlocked if previous assessment >= 75%
-          const isUnlocked = idx <= 1 || (idx === 2 && (user?.completedAssessments['mundo-2'] || 0) >= 75);
+          // Unlock rules: Teacher has all unlocked; otherwise check unlockedWorlds list or prerequisites
+          const isUnlocked = 
+            user?.role === 'teacher' ||
+            user?.unlockedWorlds?.includes(w.id) ||
+            idx <= 1 || 
+            (idx === 2 && (user?.completedAssessments['mundo-2'] || 0) >= 75) ||
+            (idx === 3 && (user?.completedAssessments['mundo-3'] || 0) >= 75) ||
+            (idx === 4 && (user?.completedAssessments['mundo-4'] || 0) >= 75);
           const assessmentScore = user?.completedAssessments[w.id];
 
           return (

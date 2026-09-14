@@ -1,92 +1,211 @@
 import React, { useState } from 'react';
 import { 
-  GraduationCap, 
   Sparkles, 
   Lock, 
-  Mail, 
+  User as UserIcon, 
   ArrowRight, 
-  ShieldCheck, 
   CheckCircle2, 
   AlertCircle, 
-  Compass, 
   Database,
-  Users,
-  KeyRound
+  GraduationCap,
+  KeyRound,
+  ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import { UserAvatar } from '../components/common/UserAvatar';
 
-const CLASSMATES = [
-  { id: 'aluno-alex', name: 'Alex Ramos', xp: 320, level: 3, avatar: 'alex', isDefault: true },
-  { id: 'aluno-leonor', name: 'Leonor Santos', xp: 920, level: 5, avatar: 'leonor' },
-  { id: 'aluno-tiago', name: 'Tiago Ferreira', xp: 850, level: 5, avatar: 'tiago' },
-  { id: 'aluno-beatriz', name: 'Beatriz Costa', xp: 290, level: 3, avatar: 'beatriz' },
-  { id: 'aluno-duarte', name: 'Duarte Lima', xp: 210, level: 2, avatar: 'duarte' },
-  { id: 'aluno-ines', name: 'Inês Mendes', xp: 180, level: 2, avatar: 'ines' },
-  { id: 'aluno-miguel', name: 'Miguel Rocha', xp: 120, level: 2, avatar: 'miguel' },
-  { id: 'aluno-sofia', name: 'Sofia Martins', xp: 90, level: 1, avatar: 'sofia' },
+interface ClassUser {
+  id: string;
+  name: string;
+  role: 'teacher' | 'student';
+  subtitle: string;
+  avatar: string;
+  xp?: number;
+  level?: number;
+  email?: string;
+}
+
+const CLASS_PROFILES: ClassUser[] = [
+  { 
+    id: 'prof-carla', 
+    name: 'Prof.ª Carla', 
+    role: 'teacher', 
+    subtitle: 'Docente Titular de TIC', 
+    avatar: 'teacher-helena',
+    email: 'imaginebycarla2023@gmail.com'
+  },
+  { 
+    id: 'aluno-alex', 
+    name: 'Alex Ramos', 
+    role: 'student', 
+    subtitle: 'Aluno Demo • Nível 3', 
+    avatar: 'alex',
+    xp: 320,
+    level: 3
+  },
+  { 
+    id: 'aluno-leonor', 
+    name: 'Leonor Santos', 
+    role: 'student', 
+    subtitle: 'Aluna • Nível 5', 
+    avatar: 'leonor',
+    xp: 920,
+    level: 5
+  },
+  { 
+    id: 'aluno-tiago', 
+    name: 'Tiago Ferreira', 
+    role: 'student', 
+    subtitle: 'Aluno • Nível 5', 
+    avatar: 'tiago',
+    xp: 850,
+    level: 5
+  },
+  { 
+    id: 'aluno-beatriz', 
+    name: 'Beatriz Costa', 
+    role: 'student', 
+    subtitle: 'Aluna • Nível 3', 
+    avatar: 'beatriz',
+    xp: 290,
+    level: 3
+  },
+  { 
+    id: 'aluno-duarte', 
+    name: 'Duarte Lima', 
+    role: 'student', 
+    subtitle: 'Aluno • Nível 2', 
+    avatar: 'duarte',
+    xp: 210,
+    level: 2
+  },
+  { 
+    id: 'aluno-ines', 
+    name: 'Inês Mendes', 
+    role: 'student', 
+    subtitle: 'Aluna • Nível 2', 
+    avatar: 'ines',
+    xp: 180,
+    level: 2
+  },
+  { 
+    id: 'aluno-miguel', 
+    name: 'Miguel Rocha', 
+    role: 'student', 
+    subtitle: 'Aluno • Nível 2', 
+    avatar: 'miguel',
+    xp: 120,
+    level: 2
+  },
+  { 
+    id: 'aluno-sofia', 
+    name: 'Sofia Martins', 
+    role: 'student', 
+    subtitle: 'Aluna • Nível 1', 
+    avatar: 'sofia',
+    xp: 90,
+    level: 1
+  }
 ];
 
 export const LoginView: React.FC = () => {
-  const { login, loginTeacher, switchDemoUser } = useAuth();
+  const { unifiedLogin, switchDemoUser } = useAuth();
   const { setCurrentView, addToast } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'student' | 'teacher'>('student');
-  const [customStudentName, setCustomStudentName] = useState('');
-  const [teacherEmail] = useState('imaginebycarla2023@gmail.com');
-  const [teacherPassword, setTeacherPassword] = useState('');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Student Login Handler
-  const handleStudentLogin = async (studentId: string, studentName?: string) => {
-    setLoading(true);
+  const isTeacherSelected = 
+    identifier.toLowerCase().includes('carla') || 
+    identifier.toLowerCase().includes('prof') ||
+    identifier.toLowerCase() === 'imaginebycarla2023@gmail.com';
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!identifier.trim()) {
+      setError('Por favor, escreve o teu nome, utilizador ou email.');
+      return;
+    }
+
     setError(null);
+    setLoading(true);
+
     try {
-      await login(studentId, 'student');
-      addToast({
-        title: `Bem-vindo, ${studentName || 'Aluno'}!`,
-        message: 'Sessão iniciada na Missão TIC 6.º Ano.',
-        type: 'success'
-      });
-      setCurrentView('dashboard');
+      const res = await unifiedLogin(identifier, password);
+      if (res.success) {
+        if (res.role === 'teacher') {
+          addToast({
+            title: 'Bem-vinda, Prof.ª Carla!',
+            message: 'Painel da docente sincronizado com o Firestore.',
+            type: 'success'
+          });
+          setCurrentView('teacher');
+        } else if (res.role === 'admin') {
+          addToast({
+            title: 'Modo Administrador TIC',
+            message: 'Acesso às configurações técnicas do sistema.',
+            type: 'info'
+          });
+          setCurrentView('admin');
+        } else {
+          addToast({
+            title: 'Sessão Iniciada!',
+            message: `Bem-vindo à Missão TIC 6.º Ano.`,
+            type: 'success'
+          });
+          setCurrentView('dashboard');
+        }
+      } else {
+        setError(res.error || 'Credenciais inválidas. Tenta novamente.');
+      }
     } catch (err: any) {
-      setError('Erro ao aceder à conta do aluno.');
+      setError('Ocorreu um erro ao iniciar sessão. Tenta novamente.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Custom Student Name Submit
-  const handleCustomStudentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customStudentName.trim()) return;
-    handleStudentLogin('aluno-alex', customStudentName.trim());
-  };
-
-  // Teacher Login Handler
-  const handleTeacherSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Quick 1-click login for any profile (teacher or student)
+  const handleQuickSelect = async (profile: ClassUser) => {
     setError(null);
     setLoading(true);
 
-    const result = await loginTeacher(teacherPassword);
-    setLoading(false);
-
-    if (result.success) {
-      addToast({
-        title: 'Bem-vinda, Prof.ª Carla!',
-        message: 'Painel da docente sincronizado com o Firestore.',
-        type: 'success'
-      });
-      setCurrentView('teacher');
+    if (profile.role === 'teacher') {
+      setIdentifier(profile.email || 'imaginebycarla2023@gmail.com');
+      setPassword('carlamso');
+      const res = await unifiedLogin(profile.email || 'imaginebycarla2023@gmail.com', 'carlamso');
+      setLoading(false);
+      if (res.success) {
+        addToast({
+          title: 'Bem-vinda, Prof.ª Carla!',
+          message: 'Painel da docente sincronizado com o Firestore.',
+          type: 'success'
+        });
+        setCurrentView('teacher');
+      } else {
+        setError(res.error || 'Erro ao entrar como professora.');
+      }
     } else {
-      setError(result.error || 'Credenciais inválidas. Confirme a palavra-passe.');
+      setIdentifier(profile.name);
+      setPassword('');
+      const res = await unifiedLogin(profile.id, '');
+      setLoading(false);
+      if (res.success) {
+        addToast({
+          title: `Bem-vindo, ${profile.name}!`,
+          message: 'Sessão iniciada na Missão TIC 6.º Ano.',
+          type: 'success'
+        });
+        setCurrentView('dashboard');
+      } else {
+        setError(res.error || 'Erro ao entrar como aluno.');
+      }
     }
   };
 
-  // Admin Login Handler
   const handleAdminLogin = async () => {
     setLoading(true);
     await switchDemoUser('admin');
@@ -102,7 +221,7 @@ export const LoginView: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-indigo-950 to-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 lg:p-8 selection:bg-blue-500 selection:text-white">
       {/* Top Header Branding */}
-      <div className="max-w-5xl w-full mx-auto flex items-center justify-between py-2">
+      <div className="max-w-4xl w-full mx-auto flex items-center justify-between py-2">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30 text-white font-extrabold text-xl">
             🚀
@@ -125,8 +244,8 @@ export const LoginView: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Login Container */}
-      <div className="max-w-4xl w-full mx-auto my-6 sm:my-10 bg-slate-900/90 border border-slate-800/80 rounded-3xl p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
+      {/* Main Single Unified Login Card */}
+      <div className="max-w-3xl w-full mx-auto my-6 sm:my-8 bg-slate-900/90 border border-slate-800/90 rounded-3xl p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
         
         {/* Intro */}
         <div className="text-center max-w-xl mx-auto mb-8">
@@ -134,240 +253,152 @@ export const LoginView: React.FC = () => {
             <Sparkles className="w-3.5 h-3.5" />
             <span>Portal de Entrada da Turma</span>
           </div>
-          <h1 className="font-display font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight">
-            Escolhe como queres entrar
+          <h1 className="font-display font-black text-2xl sm:text-3xl text-white tracking-tight">
+            Entrar na Missão TIC
           </h1>
-          <p className="text-sm text-slate-400 mt-2">
-            Acede como aluno da turma para explorar os 5 mundos ou entra com as credenciais exclusivas da <strong>Prof.ª Carla</strong>.
+          <p className="text-xs sm:text-sm text-slate-400 mt-2">
+            Alunos e docente entram no mesmo portal. Escreve os teus dados ou escolhe o teu perfil da Turma 6.º A abaixo.
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex p-1.5 bg-slate-950/70 border border-slate-800 rounded-2xl max-w-md mx-auto mb-8">
+        {/* Unified Form */}
+        <form onSubmit={handleSubmit} className="max-w-md mx-auto space-y-4 mb-8">
+          {/* Error Banner */}
+          {error && (
+            <div className="p-3.5 rounded-2xl bg-rose-950/70 border border-rose-600/60 text-rose-200 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Identifier Input */}
+          <div>
+            <label className="block text-xs font-bold text-slate-300 mb-1.5">
+              Utilizador, Nome ou Email
+            </label>
+            <div className="relative">
+              <UserIcon className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                id="login-input-identifier"
+                type="text"
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
+                placeholder="ex: Alex Ramos ou imaginebycarla2023@gmail.com"
+                required
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* Password Input (Required for teacher, optional for students) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-slate-300">
+                Palavra-passe
+              </label>
+              {isTeacherSelected && (
+                <button
+                  type="button"
+                  onClick={() => setPassword('carlamso')}
+                  className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 hover:underline cursor-pointer"
+                >
+                  Preencher demo (carlamso)
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                id="login-input-password"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder={isTeacherSelected ? "Palavra-passe da Prof.ª Carla" : "Palavra-passe (apenas docente)"}
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1.5">
+              💡 <strong>Alunos</strong> acedem diretamente sem palavra-passe. A senha (<span className="font-mono text-slate-300">carlamso</span>) é apenas exigida para a conta da <strong>Prof.ª Carla</strong>.
+            </p>
+          </div>
+
+          {/* Submit Button */}
           <button
-            id="tab-btn-student"
-            type="button"
-            onClick={() => {
-              setActiveTab('student');
-              setError(null);
-            }}
-            className={`flex-1 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'student'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
+            id="btn-login-submit"
+            type="submit"
+            disabled={loading || !identifier.trim()}
+            className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-95 disabled:opacity-50 text-white rounded-xl font-bold text-xs sm:text-sm shadow-lg shadow-blue-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
           >
-            <Compass className="w-4 h-4" />
-            <span>Área do Aluno</span>
+            {loading ? (
+              <span>A verificar credenciais...</span>
+            ) : (
+              <>
+                <span>Entrar na Missão TIC</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </button>
-          <button
-            id="tab-btn-teacher"
-            type="button"
-            onClick={() => {
-              setActiveTab('teacher');
-              setError(null);
-            }}
-            className={`flex-1 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'teacher'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <GraduationCap className="w-4 h-4" />
-            <span>Prof.ª Carla (Docente)</span>
-          </button>
+        </form>
+
+        {/* Divider */}
+        <div className="relative my-6 text-center">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-800"></div>
+          </div>
+          <span className="relative px-4 bg-slate-900 text-slate-400 text-xs font-semibold uppercase tracking-wider">
+            Ou escolhe o teu perfil da turma
+          </span>
         </div>
 
-        {/* Error message */}
-        {error && (
-          <div className="mb-6 max-w-md mx-auto p-3.5 rounded-2xl bg-rose-950/60 border border-rose-600/50 text-rose-200 text-xs font-semibold flex items-center gap-2.5">
-            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Tab 1: Student Area */}
-        {activeTab === 'student' && (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            {/* Featured Student Demo (Alex) */}
-            <div className="bg-gradient-to-r from-blue-950/70 to-indigo-950/70 border border-blue-500/30 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-4 text-center sm:text-left">
-                <div className="relative">
-                  <div className="w-16 h-16 rounded-2xl bg-blue-600/30 border border-blue-400/40 flex items-center justify-center text-3xl shadow-inner">
-                    👨‍🚀
-                  </div>
-                  <span className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-md bg-blue-600 text-[10px] font-bold text-white uppercase">
-                    Demo
-                  </span>
-                </div>
-                <div>
-                  <div className="flex items-center justify-center sm:justify-start gap-2">
-                    <h3 className="font-display font-bold text-lg text-white">Alex Ramos</h3>
-                    <span className="text-[11px] font-semibold text-blue-300 bg-blue-950 px-2 py-0.5 rounded-md border border-blue-800">
-                      Turma 6.º A
+        {/* Quick Profiles Grid: Teacher & Students Together */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+          {CLASS_PROFILES.map(p => {
+            const isTeacher = p.role === 'teacher';
+            return (
+              <button
+                key={p.id}
+                id={`btn-profile-${p.id}`}
+                onClick={() => handleQuickSelect(p)}
+                disabled={loading}
+                className={`p-3.5 rounded-2xl border text-left transition-all group cursor-pointer flex items-center gap-3.5 ${
+                  isTeacher
+                    ? 'bg-indigo-950/50 hover:bg-indigo-900/60 border-indigo-500/40 hover:border-indigo-400'
+                    : 'bg-slate-950/60 hover:bg-slate-800/80 border-slate-800 hover:border-blue-500/50'
+                }`}
+              >
+                <div className="relative shrink-0">
+                  <UserAvatar name={p.name} avatarId={p.avatar} size="md" />
+                  {isTeacher && (
+                    <span className="absolute -bottom-1 -right-1 px-1 py-0.5 rounded bg-indigo-600 text-[9px] font-bold text-white uppercase">
+                      Prof
                     </span>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <p className={`font-bold text-xs truncate ${isTeacher ? 'text-indigo-200 group-hover:text-white' : 'text-slate-200 group-hover:text-blue-400'}`}>
+                      {p.name}
+                    </p>
+                    {p.xp && (
+                      <span className="text-[10px] font-mono text-amber-400 font-bold shrink-0">
+                        {p.xp} XP
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-300 mt-0.5">
-                    Nível 3 • Explorador Digital • 320 XP • Pronto para o Mundo 2
+                  <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                    {p.subtitle}
                   </p>
                 </div>
-              </div>
-
-              <button
-                id="btn-login-alex"
-                onClick={() => handleStudentLogin('aluno-alex', 'Alex Ramos')}
-                disabled={loading}
-                className="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-500 active:scale-95 disabled:opacity-50 text-white rounded-xl font-bold text-xs sm:text-sm shadow-lg shadow-blue-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
-              >
-                <span>Entrar como Aluno Demo</span>
-                <ArrowRight className="w-4 h-4" />
               </button>
-            </div>
-
-            {/* Other Classmates in Turma 6.º A */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Users className="w-4 h-4 text-slate-400" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Ou entra como outro aluno da Turma 6.º A:
-                </h4>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {CLASSMATES.filter(c => c.id !== 'aluno-alex').map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => handleStudentLogin(c.id, c.name)}
-                    disabled={loading}
-                    className="p-3.5 rounded-2xl bg-slate-950/60 hover:bg-slate-800/80 border border-slate-800 hover:border-blue-500/50 text-left transition-all group cursor-pointer flex flex-col justify-between"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <UserAvatar name={c.name} avatarId={c.avatar} size="sm" />
-                      <span className="text-[10px] font-mono text-amber-400 font-bold">
-                        +{c.xp} XP
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-bold text-xs text-slate-200 group-hover:text-blue-400 transition-colors truncate">
-                        {c.name}
-                      </p>
-                      <p className="text-[10px] text-slate-400">
-                        Nível {c.level}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Custom Name */}
-            <form onSubmit={handleCustomStudentSubmit} className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-center gap-3">
-              <input
-                type="text"
-                value={customStudentName}
-                onChange={e => setCustomStudentName(e.target.value)}
-                placeholder="Ou escreve o teu nome de aluno..."
-                className="w-full sm:flex-1 px-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-              />
-              <button
-                type="submit"
-                disabled={!customStudentName.trim() || loading}
-                className="w-full sm:w-auto px-5 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
-              >
-                Entrar com este Nome
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* Tab 2: Teacher Exclusive Portal (Prof.ª Carla) */}
-        {activeTab === 'teacher' && (
-          <div className="max-w-md mx-auto space-y-5 animate-in fade-in duration-200">
-            <div className="p-4 rounded-2xl bg-indigo-950/50 border border-indigo-500/30 text-indigo-200 text-xs leading-relaxed">
-              <div className="flex items-center gap-2 font-bold text-indigo-100 mb-1">
-                <ShieldCheck className="w-4 h-4 text-indigo-400" />
-                <span>Docente Titular Exclusiva</span>
-              </div>
-              Esta plataforma educativa foi concebida exclusivamente para a <strong>Prof.ª Carla</strong>. Não é necessário administrar nem criar novos professores.
-            </div>
-
-            <form onSubmit={handleTeacherSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                  Email da Docente
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    readOnly
-                    value={teacherEmail}
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950/80 border border-slate-800 font-mono text-xs text-indigo-300 cursor-default focus:outline-none"
-                  />
-                </div>
-                <span className="text-[10px] text-slate-400 mt-1 block">
-                  Identificador único registado no Firestore.
-                </span>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-300">
-                    Palavra-passe Docente
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setTeacherPassword('carlamso')}
-                    className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 hover:underline cursor-pointer"
-                  >
-                    Preencher demo (carlamso)
-                  </button>
-                </div>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="password"
-                    required
-                    value={teacherPassword}
-                    onChange={e => setTeacherPassword(e.target.value)}
-                    placeholder="Insere a palavra-passe..."
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  id="btn-login-teacher"
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 disabled:opacity-50 text-white rounded-xl font-bold text-xs sm:text-sm shadow-lg shadow-indigo-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <span>A validar no Firestore...</span>
-                  ) : (
-                    <>
-                      <GraduationCap className="w-4 h-4" />
-                      <span>Entrar no Painel da Prof.ª Carla</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-
-            <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800">
-              <span>Palavra-passe de demonstração:</span>
-              <span className="font-mono font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
-                carlamso
-              </span>
-            </div>
-          </div>
-        )}
+            );
+          })}
+        </div>
 
       </div>
 
       {/* Footer Discreet Link for Admin and Copyright */}
-      <div className="max-w-5xl w-full mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400 pt-4 border-t border-slate-800/60">
+      <div className="max-w-4xl w-full mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400 pt-4 border-t border-slate-800/60">
         <div>
           Missão TIC • Disciplina de TIC do 6.º Ano de Escolaridade • Portugal
         </div>

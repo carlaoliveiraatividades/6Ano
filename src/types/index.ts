@@ -18,6 +18,7 @@ export interface User {
   completedAssessments: Record<string, number>; // worldId -> score percentage
   badges: string[];
   claimedWeeklyChallenges: string[];
+  unlockedWorlds?: string[];
   createdAt: string;
 }
 
@@ -36,6 +37,10 @@ export interface World {
   badgeId: string;
   badgeName: string;
   badgeIcon: string;
+  isPublished?: boolean;
+  unlockedForAll?: boolean;
+  teacherNotes?: string;
+  featuredActivity?: string;
   sections: {
     descobre: {
       title: string;

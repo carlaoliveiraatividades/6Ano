@@ -9,6 +9,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (username: string, role?: UserRole) => Promise<boolean>;
   loginTeacher: (password: string) => Promise<{ success: boolean; error?: string }>;
+  unifiedLogin: (identifier: string, password?: string) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
   logout: () => void;
   switchDemoUser: (role: UserRole) => Promise<void>;
   updateUserProgress: (updater: (prev: User) => User) => void;
@@ -43,7 +44,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             completedSimulators: progressData?.completedSimulators || data.user.completedSimulators || [],
             completedMissions: progressData?.completedMissions || data.user.completedMissions || [],
             completedAssessments: progressData?.completedAssessments || data.user.completedAssessments || {},
-            claimedWeeklyChallenges: progressData?.claimedWeeklyChallenges || []
+            claimedWeeklyChallenges: progressData?.claimedWeeklyChallenges || [],
+            unlockedWorlds: progressData?.unlockedWorlds || data.user.unlockedWorlds || ['mundo-1', 'mundo-2']
           });
           return true;
         }
@@ -124,6 +126,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const unifiedLogin = async (identifier: string, password?: string): Promise<{ success: boolean; error?: string; role?: UserRole }> => {
+    setIsLoading(true);
+    const cleanId = identifier.trim().toLowerCase();
+
+    // Teacher check
+    if (
+      cleanId === 'imaginebycarla2023@gmail.com' ||
+      cleanId === 'prof-carla' ||
+      cleanId === 'carla' ||
+      cleanId === 'prof.ª carla' ||
+      cleanId === 'prof carla' ||
+      cleanId.startsWith('prof')
+    ) {
+      if (!password || password.trim() === '') {
+        setIsLoading(false);
+        return {
+          success: false,
+          error: 'Por favor, insere a palavra-passe da Prof.ª Carla.'
+        };
+      }
+      const res = await loginTeacher(password);
+      if (res.success) {
+        return { success: true, role: 'teacher' };
+      }
+      return { success: false, error: res.error || 'Palavra-passe incorreta para a Prof.ª Carla.' };
+    }
+
+    // Admin check
+    if (cleanId === 'admin' || cleanId === 'admin.tic' || cleanId === 'admin-1') {
+      await login('admin-1', 'admin');
+      return { success: true, role: 'admin' };
+    }
+
+    // Student login
+    let targetStudentId = identifier.trim();
+    const studentMap: Record<string, string> = {
+      'alex': 'aluno-alex',
+      'alex ramos': 'aluno-alex',
+      'alex.silva': 'aluno-alex',
+      'leonor': 'aluno-leonor',
+      'leonor santos': 'aluno-leonor',
+      'tiago': 'aluno-tiago',
+      'tiago ferreira': 'aluno-tiago',
+      'beatriz': 'aluno-beatriz',
+      'beatriz costa': 'aluno-beatriz',
+      'duarte': 'aluno-duarte',
+      'duarte lima': 'aluno-duarte',
+      'ines': 'aluno-ines',
+      'inês': 'aluno-ines',
+      'inês mendes': 'aluno-ines',
+      'miguel': 'aluno-miguel',
+      'miguel rocha': 'aluno-miguel',
+      'sofia': 'aluno-sofia',
+      'sofia martins': 'aluno-sofia',
+    };
+    if (studentMap[cleanId]) {
+      targetStudentId = studentMap[cleanId];
+    }
+
+    await login(targetStudentId, 'student');
+    return { success: true, role: 'student' };
+  };
+
   const logout = () => {
     localStorage.removeItem('missao_tic_user_id');
     localStorage.setItem('missao_tic_logged_out', 'true');
@@ -189,6 +254,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         login,
         loginTeacher,
+        unifiedLogin,
         logout,
         switchDemoUser,
         updateUserProgress,
