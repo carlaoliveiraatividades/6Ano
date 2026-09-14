@@ -1,0 +1,6 @@
+{
+  "name": "Missão TIC",
+  "description": "Plataforma educativa completa para a disciplina de TIC no 6.º ano de escolaridade em Portugal. Aprende. Experimenta. Resolve. Cria.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
