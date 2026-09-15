@@ -18,45 +18,15 @@ export const RankingView: React.FC = () => {
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        if (data.rankings && Array.isArray(data.rankings) && data.rankings.length > 0) {
-          setRankings(data.rankings);
-          setLoading(false);
-          return;
-        }
+        setRankings(data.rankings || []);
+        setLoading(false);
+        return;
       }
     } catch (e) {
-      console.warn('Fallback to local rankings:', e);
+      console.warn('Erro ao carregar rankings do Firestore:', e);
     }
 
-    // Fallback if offline / server loading
-    const fallback = DEMO_CLASS_STUDENTS.map(s => {
-      if (s.userId === user?.id && user) {
-        return {
-          id: user.id,
-          nickname: user.nickname || user.name,
-          avatar: user.avatar,
-          className: user.className || '6.º A',
-          classId: user.classId || 'turma-6a',
-          xp: user.xp,
-          level: user.level,
-          levelTitle: user.levelTitle,
-          badgesCount: user.badges.length
-        };
-      }
-      return {
-        id: s.userId,
-        nickname: s.nickname || s.name,
-        avatar: s.avatar,
-        className: s.className || '6.º A',
-        classId: 'turma-6a',
-        xp: s.xp,
-        level: s.level,
-        levelTitle: s.levelTitle,
-        badgesCount: Math.max(1, Math.floor(s.level * 0.8))
-      };
-    }).sort((a, b) => b.xp - a.xp);
-
-    setRankings(fallback);
+    setRankings([]);
     setLoading(false);
   };
 

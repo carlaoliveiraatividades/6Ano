@@ -414,7 +414,7 @@ export const TeacherDashboardView: React.FC = () => {
                 Base de Dados Firestore Ativa
               </span>
               <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-[10px] font-mono text-emerald-100 border border-white/20">
-                imaginebycarla2023@gmail.com
+                {user?.email || 'imaginebycarla2023@gmail.com'}
               </span>
             </div>
             <h1 className="font-display font-extrabold text-2xl sm:text-3xl mt-2 tracking-tight">
@@ -770,12 +770,21 @@ export const TeacherDashboardView: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredStudents.map(st => (
-                <div
-                  key={st.userId}
-                  className="p-5 rounded-2xl bg-white border border-slate-200 hover:shadow-md transition-all space-y-4"
-                >
+            {filteredStudents.length === 0 ? (
+              <div className="text-center py-12 px-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <h3 className="text-sm font-bold text-slate-700">Nenhum aluno registado na turma</h3>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  A base de dados foi limpa e está pronta para receber os novos alunos. Os alunos podem registar-se ou pode adicioná-los no separador &quot;+ Registar Aluno&quot;.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredStudents.map(st => (
+                  <div
+                    key={st.userId}
+                    className="p-5 rounded-2xl bg-white border border-slate-200 hover:shadow-md transition-all space-y-4"
+                  >
                   {/* Top student header */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -898,6 +907,7 @@ export const TeacherDashboardView: React.FC = () => {
                 </div>
               ))}
             </div>
+          )}
           </div>
         </div>
       )}

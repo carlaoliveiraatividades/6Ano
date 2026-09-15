@@ -10,12 +10,12 @@ export const WorldsMapBanner: React.FC = () => {
   // Determine unlock status
   // Mundo 1 is always unlocked.
   // Mundo 2 is unlocked if Mundo 1 assessment >= 75% or demo initial (in demo Alex has Mundo 2 unlocked)
-  const isWorld1Complete = (user?.completedAssessments['mundo-1'] || 0) >= 75 || true; // In screenshot Mundo 1 is in progress (60%) and Mundo 2 is Desbloqueado (20%)
+  const isWorld1Complete = (user?.completedAssessments?.['mundo-1'] || 0) >= 75 || true; // In screenshot Mundo 1 is in progress (60%) and Mundo 2 is Desbloqueado (20%)
   const isWorld2Unlocked = true; // In screenshot Mundo 2 is Desbloqueado
-  const isWorld3Unlocked = (user?.completedAssessments['mundo-2'] || 0) >= 75;
-  const isWorld4Unlocked = isWorld3Unlocked && (user?.completedAssessments['mundo-3'] || 0) >= 75;
-  const isWorld5Unlocked = isWorld4Unlocked && (user?.completedAssessments['mundo-4'] || 0) >= 75;
-  const isGrandMissionUnlocked = isWorld5Unlocked && (user?.completedAssessments['mundo-5'] || 0) >= 75;
+  const isWorld3Unlocked = (user?.completedAssessments?.['mundo-2'] || 0) >= 75;
+  const isWorld4Unlocked = isWorld3Unlocked && (user?.completedAssessments?.['mundo-3'] || 0) >= 75;
+  const isWorld5Unlocked = isWorld4Unlocked && (user?.completedAssessments?.['mundo-4'] || 0) >= 75;
+  const isGrandMissionUnlocked = isWorld5Unlocked && (user?.completedAssessments?.['mundo-5'] || 0) >= 75;
 
   const worldsList = [
     {

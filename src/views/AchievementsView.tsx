@@ -38,7 +38,7 @@ export const AchievementsView: React.FC = () => {
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
         <div>
           <h2 className="font-display font-extrabold text-xl text-slate-900">
-            Galeria de Distintivos ({user?.badges.length || 0} de {BADGES.length} desbloqueados)
+            Galeria de Distintivos ({user?.badges?.length || 0} de {BADGES.length} desbloqueados)
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
             Cada distintivo atesta o domínio de competências digitais curriculares.
@@ -47,7 +47,7 @@ export const AchievementsView: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {BADGES.map((b) => {
-            const isUnlocked = user?.badges.includes(b.id);
+            const isUnlocked = Boolean(user?.badges?.includes(b.id));
             const Icon = iconMap[b.id] || Award;
 
             return (

@@ -5,7 +5,6 @@ import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 
 // Views
-import { LoginView } from './views/LoginView';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { WorldsListView } from './views/WorldsListView';
 import { WorldDetailView } from './views/WorldDetailView';
@@ -16,12 +15,13 @@ import { RankingView } from './views/RankingView';
 import { TeacherDashboardView } from './views/TeacherDashboardView';
 
 // Modals
+import { AuthModal } from './components/common/AuthModal';
 import { WeeklyChallengeModal } from './components/common/WeeklyChallengeModal';
 import { DailyModals } from './components/common/DailyModals';
 import { CheckCircle2, AlertCircle, Sparkles, Award } from 'lucide-react';
 
 const AppContent: React.FC = () => {
-  const { currentView, toasts } = useApp();
+  const { currentView, toasts, openAuthModal } = useApp();
   const { user, isLoading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -39,42 +39,8 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // If not authenticated or logged out, show Login & Portal View
-  if (!user) {
-    return (
-      <>
-        <LoginView />
-
-        {/* Global Toast Notifications Stack */}
-        {toasts.length > 0 && (
-          <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
-            {toasts.map(t => (
-              <div
-                key={t.id}
-                className={`px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-2.5 text-xs sm:text-sm font-bold animate-in fade-in slide-in-from-bottom-5 duration-300 pointer-events-auto max-w-sm ${
-                  t.type === 'xp'
-                    ? 'bg-amber-950/95 text-amber-100 border-amber-600/60'
-                    : t.type === 'badge'
-                    ? 'bg-purple-950/95 text-purple-100 border-purple-600/60'
-                    : t.type === 'success'
-                    ? 'bg-emerald-950/95 text-emerald-100 border-emerald-600/60'
-                    : 'bg-slate-900/95 text-slate-100 border-slate-700'
-                }`}
-              >
-                {t.type === 'xp' && <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />}
-                {t.type === 'badge' && <Award className="w-4 h-4 text-purple-400 shrink-0" />}
-                {t.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
-                {t.type === 'info' && <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />}
-                {t.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
-                <span>{t.message}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </>
-    );
-  }
-
+  // NOTE: The main page is ALWAYS visible regardless of whether users are logged in or not.
+  // The Login/Register options are accessible via the button in the top right corner of the Header.
   const renderView = () => {
     switch (currentView) {
       case 'dashboard':
@@ -92,7 +58,28 @@ const AppContent: React.FC = () => {
       case 'ranking':
         return <RankingView />;
       case 'teacher':
-        return user.role === 'teacher' ? <TeacherDashboardView /> : <DashboardView />;
+        if (user?.role === 'teacher') {
+          return <TeacherDashboardView />;
+        }
+        return (
+          <div className="p-8 text-center bg-white rounded-3xl border border-slate-200 shadow-xs max-w-lg mx-auto mt-12 space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center text-2xl mx-auto">
+              👩‍🏫
+            </div>
+            <h2 className="text-xl font-bold font-display text-slate-900">
+              Área Restrita à Docente
+            </h2>
+            <p className="text-xs text-slate-600">
+              O Painel de Gestão de Turmas é exclusivo para a Professora Carla. Inicia sessão para aceder às avaliações e submissões.
+            </p>
+            <button
+              onClick={() => openAuthModal('login')}
+              className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+            >
+              Iniciar Sessão Docente
+            </button>
+          </div>
+        );
       default:
         return <DashboardView />;
     }
@@ -109,7 +96,7 @@ const AppContent: React.FC = () => {
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Top Bar matching screenshot */}
+          {/* Top Bar with Login/Register button on top right */}
           <Header onToggleMobileMenu={() => setMobileMenuOpen(prev => !prev)} />
 
           {/* Primary View Outlet */}
@@ -118,6 +105,9 @@ const AppContent: React.FC = () => {
           </main>
         </div>
       </div>
+
+      {/* Auth Modal for Login and Student Registration (No visitor tab) */}
+      <AuthModal />
 
       {/* Global Modals */}
       <WeeklyChallengeModal />
@@ -136,12 +126,16 @@ const AppContent: React.FC = () => {
                   ? 'bg-purple-950/95 text-purple-100 border-purple-600/60'
                   : t.type === 'success'
                   ? 'bg-emerald-950/95 text-emerald-100 border-emerald-600/60'
+                  : t.type === 'error'
+                  ? 'bg-rose-950/95 text-rose-100 border-rose-600/60'
                   : 'bg-slate-900/95 text-slate-100 border-slate-700'
               }`}
             >
               {t.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
               {t.type === 'badge' && <Award className="w-5 h-5 text-purple-300 shrink-0" />}
               {t.type === 'xp' && <Sparkles className="w-5 h-5 text-amber-300 shrink-0" />}
+              {t.type === 'error' && <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />}
+              {t.type === 'info' && <CheckCircle2 className="w-5 h-5 text-blue-400 shrink-0" />}
               <div>
                 <span className="block font-bold">{t.title}</span>
                 <span className="text-[11px] font-normal opacity-90">{t.message}</span>

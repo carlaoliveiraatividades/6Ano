@@ -52,10 +52,10 @@ export const WorldsListView: React.FC = () => {
             user?.role === 'teacher' ||
             user?.unlockedWorlds?.includes(w.id) ||
             idx <= 1 || 
-            (idx === 2 && (user?.completedAssessments['mundo-2'] || 0) >= 75) ||
-            (idx === 3 && (user?.completedAssessments['mundo-3'] || 0) >= 75) ||
-            (idx === 4 && (user?.completedAssessments['mundo-4'] || 0) >= 75);
-          const assessmentScore = user?.completedAssessments[w.id];
+            (idx === 2 && (user?.completedAssessments?.['mundo-2'] || 0) >= 75) ||
+            (idx === 3 && (user?.completedAssessments?.['mundo-3'] || 0) >= 75) ||
+            (idx === 4 && (user?.completedAssessments?.['mundo-4'] || 0) >= 75);
+          const assessmentScore = user?.completedAssessments?.[w.id];
 
           return (
             <div

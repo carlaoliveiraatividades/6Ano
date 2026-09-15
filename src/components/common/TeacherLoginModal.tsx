@@ -23,7 +23,7 @@ export const TeacherLoginModal: React.FC<TeacherLoginModalProps> = ({ isOpen, on
     setError(null);
     setLoading(true);
 
-    const result = await loginTeacher(password);
+    const result = await loginTeacher(password, email);
     setLoading(false);
 
     if (result.success) {
@@ -37,12 +37,6 @@ export const TeacherLoginModal: React.FC<TeacherLoginModalProps> = ({ isOpen, on
     } else {
       setError(result.error || 'Credenciais inválidas. Confirme a palavra-passe.');
     }
-  };
-
-  const fillDemoPassword = () => {
-    setEmail('imaginebycarla2023@gmail.com');
-    setPassword('carlamso');
-    setError(null);
   };
 
   return (
@@ -102,17 +96,10 @@ export const TeacherLoginModal: React.FC<TeacherLoginModalProps> = ({ isOpen, on
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="mb-1">
               <label className="block text-xs font-bold text-slate-700">
                 Palavra-passe
               </label>
-              <button
-                type="button"
-                onClick={fillDemoPassword}
-                className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
-              >
-                Preencher (carlamso)
-              </button>
             </div>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />

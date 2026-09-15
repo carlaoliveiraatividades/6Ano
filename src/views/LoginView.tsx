@@ -43,10 +43,10 @@ const CLASS_OPTIONS = [
 ];
 
 export const LoginView: React.FC = () => {
-  const { unifiedLogin, registerStudent, loginGuest } = useAuth();
+  const { unifiedLogin, registerStudent } = useAuth();
   const { setCurrentView, addToast } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'login' | 'register' | 'visitor'>('login');
+  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
 
   // Login Form State
   const [identifier, setIdentifier] = useState('');
@@ -226,29 +226,6 @@ export const LoginView: React.FC = () => {
     }
   };
 
-  // Handle Guest / Visitor Access
-  const handleGuestAccess = async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await loginGuest();
-      if (res.success) {
-        addToast({
-          title: 'Modo Visitante Ativado 🌟',
-          message: 'Podes explorar livremente todos os 5 mundos e atividades.',
-          type: 'info'
-        });
-        setCurrentView('dashboard');
-      } else {
-        setError(res.error || 'Erro ao aceder como visitante.');
-      }
-    } catch (err: any) {
-      setError('Erro ao entrar em modo visitante.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-indigo-950 to-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 lg:p-8 selection:bg-blue-500 selection:text-white">
       {/* Top Header Branding */}
@@ -265,21 +242,6 @@ export const LoginView: React.FC = () => {
               Plataforma Interativa de Tecnologias de Informação e Comunicação
             </span>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          {/* Quick Visitor Button in Header */}
-          <button
-            id="top-btn-visitor-access"
-            type="button"
-            onClick={handleGuestAccess}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 text-xs font-extrabold transition-all cursor-pointer shadow-sm hover:scale-105"
-            title="Aceder imediatamente sem registo"
-          >
-            <Eye className="w-3.5 h-3.5 text-amber-400" />
-            <span>Acesso a Visitantes</span>
-          </button>
         </div>
       </div>
 
@@ -315,20 +277,6 @@ export const LoginView: React.FC = () => {
             >
               <Sparkles className="w-4 h-4" />
               <span>Criar Conta de Aluno</span>
-            </button>
-
-            <button
-              id="tab-visitor"
-              type="button"
-              onClick={() => { setActiveTab('visitor'); setError(null); }}
-              className={`flex-1 py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                activeTab === 'visitor'
-                  ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/25'
-                  : 'text-amber-300/80 hover:text-amber-200 hover:bg-amber-950/30'
-              }`}
-            >
-              <Compass className="w-4 h-4" />
-              <span>Visitante</span>
             </button>
           </div>
 
@@ -404,27 +352,6 @@ export const LoginView: React.FC = () => {
                     </>
                   )}
                 </button>
-
-                {/* Quick Demo Access Bar */}
-                <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-                  <span className="font-medium">Acesso Rápido de Demonstração:</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { setIdentifier('aluno-alex'); setPassword('alunotic2026'); }}
-                      className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold transition-all cursor-pointer"
-                    >
-                      👦 Aluno Alex
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setIdentifier('imaginebycarla2023@gmail.com'); setPassword('carlamso'); }}
-                      className="px-3 py-1.5 rounded-xl bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-200 font-bold transition-all cursor-pointer"
-                    >
-                      👩‍🏫 Prof.ª Carla
-                    </button>
-                  </div>
-                </div>
               </form>
             )}
 
@@ -635,34 +562,6 @@ export const LoginView: React.FC = () => {
                   )}
                 </button>
               </form>
-            )}
-
-            {/* TAB 3: VISITANTE */}
-            {activeTab === 'visitor' && (
-              <div className="text-center py-4 space-y-6">
-                <div className="w-16 h-16 rounded-3xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center mx-auto text-2xl shadow-lg shadow-amber-500/20">
-                  <Compass className="w-8 h-8 text-amber-400" />
-                </div>
-                <div className="max-w-md mx-auto">
-                  <h3 className="font-display font-black text-xl text-white">
-                    Explorar em Modo Visitante
-                  </h3>
-                  <p className="text-sm text-slate-300 mt-2">
-                    Não precisas de criar conta nem indicar email para conhecer a Missão TIC. Podes aceder a todos os 5 Mundos, realizar simuladores e experimentar os questionários interativos.
-                  </p>
-                </div>
-
-                <button
-                  id="btn-visitor-start"
-                  type="button"
-                  onClick={handleGuestAccess}
-                  disabled={loading}
-                  className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 font-black text-sm shadow-lg shadow-amber-500/30 inline-flex items-center justify-center gap-2 transition-all cursor-pointer"
-                >
-                  <Eye className="w-4 h-4" />
-                  <span>Entrar Imediatamente como Visitante</span>
-                </button>
-              </div>
             )}
           </div>
         </div>

@@ -9,8 +9,8 @@ interface AuthContextType {
   isLoading: boolean;
   isGuest?: boolean;
   login: (username: string, role?: UserRole, password?: string) => Promise<boolean>;
-  loginTeacher: (password: string, identifier?: string) => Promise<{ success: boolean; error?: string }>;
-  unifiedLogin: (identifier: string, password?: string) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
+  loginTeacher: (password: string, identifier?: string) => Promise<{ success: boolean; error?: string; teacher?: any }>;
+  unifiedLogin: (identifier: string, password?: string) => Promise<{ success: boolean; error?: string; role?: UserRole; user?: any }>;
   registerStudent: (params: {
     name: string;
     email: string;
@@ -75,16 +75,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     const savedUserId = localStorage.getItem('missao_tic_user_id');
-    if (savedUserId) {
-      if (savedUserId.startsWith('visitante')) {
-        loginGuest().finally(() => setIsLoading(false));
-      } else {
-        fetchUserFromFirestore(savedUserId).finally(() => {
-          setIsLoading(false);
-        });
-      }
+    if (savedUserId && !savedUserId.startsWith('visitante')) {
+      fetchUserFromFirestore(savedUserId).finally(() => {
+        setIsLoading(false);
+      });
     } else {
-      // Default to null so user sees the initial landing/login page with Visitor button
+      localStorage.removeItem('missao_tic_user_id');
       setUser(null);
       setIsLoading(false);
     }
@@ -127,7 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
-  const loginTeacher = async (password: string, identifier: string = 'imaginebycarla2023@gmail.com'): Promise<{ success: boolean; error?: string }> => {
+  const loginTeacher = async (password: string, identifier: string = 'imaginebycarla2023@gmail.com'): Promise<{ success: boolean; error?: string; teacher?: any }> => {
     setIsLoading(true);
     try {
       const res = await fetch('/api/auth/teacher-login', {
@@ -145,37 +141,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, error: data.error || 'Credenciais inválidas para o professor.' };
       }
 
-      setUser({
+      const teacherUser = {
         ...data.teacher,
         completedActivities: [],
         completedSimulators: [],
         completedMissions: [],
         completedAssessments: {},
         claimedWeeklyChallenges: []
-      });
+      };
+
+      setUser(teacherUser);
       localStorage.removeItem('missao_tic_logged_out');
       localStorage.setItem('missao_tic_user_id', data.teacher.id);
       setIsLoading(false);
-      return { success: true };
+      return { success: true, teacher: teacherUser };
     } catch (err: any) {
       setIsLoading(false);
       return { success: false, error: 'Erro ao validar credenciais do professor no Firestore.' };
     }
   };
 
-  const unifiedLogin = async (identifier: string, password?: string): Promise<{ success: boolean; error?: string; role?: UserRole }> => {
+  const unifiedLogin = async (identifier: string, password?: string): Promise<{ success: boolean; error?: string; role?: UserRole; user?: any }> => {
     setIsLoading(true);
     const cleanId = identifier.trim().toLowerCase();
+    const noSpaceId = cleanId.replace(/\s+/g, '');
 
     // Teacher check
-    if (
+    const isTeacher =
       cleanId === 'imaginebycarla2023@gmail.com' ||
+      noSpaceId === 'imaginebycarla2023@gmail.com' ||
+      noSpaceId.includes('imaginebycarla2023') ||
       cleanId === 'prof-carla' ||
       cleanId === 'carla' ||
       cleanId === 'prof.ª carla' ||
       cleanId === 'prof carla' ||
-      cleanId.startsWith('prof')
-    ) {
+      cleanId.startsWith('prof') ||
+      noSpaceId.startsWith('prof');
+
+    if (isTeacher) {
       if (!password || password.trim() === '') {
         setIsLoading(false);
         return {
@@ -185,7 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       const res = await loginTeacher(password, identifier.trim());
       if (res.success) {
-        return { success: true, role: 'teacher' };
+        return { success: true, role: 'teacher', user: res.teacher };
       }
       return { success: false, error: res.error || 'Palavra-passe incorreta para o docente.' };
     }
@@ -208,7 +211,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('missao_tic_logged_out');
       localStorage.setItem('missao_tic_user_id', data.user.id);
       setIsLoading(false);
-      return { success: true, role: 'student' };
+      return { success: true, role: 'student', user: data.user };
     } catch (err: any) {
       setIsLoading(false);
       return { success: false, error: 'Erro de comunicação ao validar a conta.' };

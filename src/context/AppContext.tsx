@@ -8,9 +8,16 @@ import { WEEKLY_CHALLENGES } from '../data/weeklyChallenges';
 
 export type MainView = 'dashboard' | 'worlds' | 'world-detail' | 'challenges' | 'achievements' | 'profile' | 'teacher' | 'grand-mission' | 'ranking';
 
-interface ToastInfo {
+export interface ToastInfo {
   id: string;
-  type: 'xp' | 'badge' | 'success' | 'info';
+  type: 'xp' | 'badge' | 'success' | 'info' | 'error';
+  title: string;
+  message: string;
+  xpAmount?: number;
+}
+
+export interface ToastOptions {
+  type?: 'xp' | 'badge' | 'success' | 'info' | 'error';
   title: string;
   message: string;
   xpAmount?: number;
@@ -37,6 +44,12 @@ interface AppContextType {
   activeWorldTab: WorldStageTab;
   setActiveWorldTab: (tab: WorldStageTab) => void;
   
+  // Auth Modal (replacing full screen visitor login)
+  isAuthModalOpen: boolean;
+  authModalTab: 'login' | 'register';
+  openAuthModal: (tab?: 'login' | 'register') => void;
+  closeAuthModal: () => void;
+
   // Modals
   activeWeeklyChallenge: WeeklyChallenge | null;
   openWeeklyChallenge: (challenge?: WeeklyChallenge) => void;
@@ -64,6 +77,12 @@ interface AppContextType {
   
   // Notifications
   toasts: ToastInfo[];
+  addToast: (
+    first: ToastInfo['type'] | ToastOptions,
+    title?: string,
+    message?: string,
+    xpAmount?: number
+  ) => void;
   removeToast: (id: string) => void;
   triggerCelebration: () => void;
 }
@@ -77,15 +96,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeWorldTab, setActiveWorldTab] = useState<WorldStageTab>('descobre');
 
   // Modals state
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalTab, setAuthModalTab] = useState<'login' | 'register'>('login');
   const [activeWeeklyChallenge, setActiveWeeklyChallenge] = useState<WeeklyChallenge | null>(null);
   const [activeTip, setActiveTip] = useState<DailyTip | null>(null);
   const [activeQuote, setActiveQuote] = useState<DailyQuote | null>(null);
   const [unlockedBadgeModal, setUnlockedBadgeModal] = useState<Badge | null>(null);
   const [toasts, setToasts] = useState<ToastInfo[]>([]);
 
-  const addToast = (type: ToastInfo['type'], title: string, message: string, xpAmount?: number) => {
+  const openAuthModal = (tab: 'login' | 'register' = 'login') => {
+    setAuthModalTab(tab);
+    setIsAuthModalOpen(true);
+  };
+
+  const closeAuthModal = () => {
+    setIsAuthModalOpen(false);
+  };
+
+  const addToast = (
+    first: ToastInfo['type'] | ToastOptions,
+    title?: string,
+    message?: string,
+    xpAmount?: number
+  ) => {
     const id = `toast_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
-    setToasts(prev => [...prev.slice(-3), { id, type, title, message, xpAmount }]);
+    let newToast: ToastInfo;
+
+    if (typeof first === 'object' && first !== null) {
+      newToast = {
+        id,
+        type: first.type || 'info',
+        title: first.title || 'Notificação',
+        message: first.message || '',
+        xpAmount: first.xpAmount
+      };
+    } else {
+      newToast = {
+        id,
+        type: typeof first === 'string' ? first : 'info',
+        title: title || 'Notificação',
+        message: message || '',
+        xpAmount
+      };
+    }
+
+    setToasts(prev => [...prev.slice(-3), newToast]);
     setTimeout(() => {
       removeToast(id);
     }, 4500);
@@ -362,6 +417,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         openWorld,
         activeWorldTab,
         setActiveWorldTab,
+        isAuthModalOpen,
+        authModalTab,
+        openAuthModal,
+        closeAuthModal,
         activeWeeklyChallenge,
         openWeeklyChallenge,
         closeWeeklyChallenge,
@@ -381,6 +440,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         submitAssessment,
         claimWeeklyChallenge,
         toasts,
+        addToast,
         removeToast,
         triggerCelebration
       }}

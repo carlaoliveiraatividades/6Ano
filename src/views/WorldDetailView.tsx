@@ -42,7 +42,7 @@ export const WorldDetailView: React.FC = () => {
   const { user } = useAuth();
 
   const world = WORLDS_DATA.find(w => w.id === selectedWorldId) || WORLDS_DATA[0];
-  const assessmentScore = user?.completedAssessments[world.id];
+  const assessmentScore = user?.completedAssessments?.[world.id];
   const isWorldPassed = assessmentScore !== undefined && assessmentScore >= 75;
 
   // Normalize legacy tab names to 6-stage names
@@ -58,7 +58,7 @@ export const WorldDetailView: React.FC = () => {
 
   // Real mission state
   const [missionText, setMissionText] = useState('');
-  const [missionSubmitted, setMissionSubmitted] = useState(user?.completedMissions.includes(world.id) || false);
+  const [missionSubmitted, setMissionSubmitted] = useState(user?.completedMissions?.includes(world.id) || false);
   const [isSubmittingMission, setIsSubmittingMission] = useState(false);
 
   // Assessment state
@@ -274,11 +274,11 @@ export const WorldDetailView: React.FC = () => {
             // Check completion indicators
             const isCompleted = 
               (stage.id === 'descobre' && Object.keys(descobreSubmitted).length > 0) ||
-              (stage.id === 'experimenta' && user?.completedSimulators.some(s => s.includes(world.id) || s.startsWith('sim-'))) ||
-              (stage.id === 'desafio' && user?.completedActivities.some(a => a.includes(world.id) || a.startsWith('sim-'))) ||
-              (stage.id === 'missao-real' && (missionSubmitted || user?.completedMissions.includes(world.id))) ||
+              (stage.id === 'experimenta' && Boolean(user?.completedSimulators?.some(s => s.includes(world.id) || s.startsWith('sim-')))) ||
+              (stage.id === 'desafio' && Boolean(user?.completedActivities?.some(a => a.includes(world.id) || a.startsWith('sim-')))) ||
+              (stage.id === 'missao-real' && (missionSubmitted || Boolean(user?.completedMissions?.includes(world.id)))) ||
               (stage.id === 'avaliacao' && isWorldPassed) ||
-              (stage.id === 'recompensa' && user?.badges.includes(world.badgeId));
+              (stage.id === 'recompensa' && Boolean(user?.badges?.includes(world.badgeId)));
 
             return (
               <button

@@ -15,7 +15,7 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { WORLDS_DATA } from '../data/worldsData';
-import { BADGES, LEVELS, getLevelForXp, DEMO_CLASS_STUDENTS } from '../data/initialData';
+import { BADGES, LEVELS, getLevelForXp } from '../data/initialData';
 import { DAILY_TIPS, DAILY_QUOTES } from '../data/dailyContent';
 import { WEEKLY_CHALLENGES } from '../data/weeklyChallenges';
 import { hashPassword, verifyPassword } from './authSecurity';
@@ -52,6 +52,7 @@ export interface ServerUser {
   badges: string[];
   createdAt: string;
   isDemo?: boolean;
+  alternateEmails?: string[];
 }
 
 export interface PublicStudentProfile {
@@ -110,8 +111,8 @@ export interface ServerAuditLog {
 // ----------------------------------------------------
 let isInitialized = false;
 
-export async function initializeAndSeedFirestore() {
-  if (isInitialized) return { status: 'already_initialized' };
+export async function initializeAndSeedFirestore(force: boolean = false) {
+  if (isInitialized && !force) return { status: 'already_initialized' };
 
   try {
     console.log('[Firestore] Checking collections and seeding initial data if necessary...');
@@ -232,143 +233,50 @@ export async function initializeAndSeedFirestore() {
         teacherId: 'prof-carla',
         teacherName: 'Prof.ª Carla',
         teacherEmail: 'imaginebycarla2023@gmail.com',
-        studentsCount: 8,
+        studentsCount: 0,
         rankingEnabled: true,
-        createdAt: '2026-09-01T08:00:00Z',
-        isDemo: true
+        createdAt: '2026-09-01T08:00:00Z'
       });
     }
 
-    // 6. Seed USERS & STUDENT PROGRESS
-    const demoUsers: ServerUser[] = [
-      {
-        id: 'aluno-alex',
-        username: 'alex.silva',
-        name: 'Alex Ramos',
-        role: 'student',
-        avatar: 'alex',
-        classId: 'turma-6a',
-        className: '6.º Ano — Turma A',
-        xp: 320,
-        level: 3,
-        levelTitle: 'Explorador Digital',
-        badges: ['badge-guardiao'],
-        createdAt: '2026-09-05T10:00:00Z',
-        isDemo: true
-      },
-      {
-        id: 'prof-carla',
-        email: 'imaginebycarla2023@gmail.com',
-        username: 'imaginebycarla2023@gmail.com',
-        name: 'Prof.ª Carla',
-        role: 'teacher',
-        avatar: 'teacher-helena',
-        classId: 'turma-6a',
-        className: '6.º Ano — Turma A',
-        xp: 2500,
-        level: 8,
-        levelTitle: 'Mestre da Missão TIC',
-        badges: ['badge-guardiao', 'badge-detetive', 'badge-criador', 'badge-engenheiro', 'badge-ia', 'badge-mestre'],
-        createdAt: '2026-09-01T08:00:00Z',
-        isDemo: true
-      }
-    ];
+    // 6. Seed ONLY the official Teacher User
+    const teacherUser: ServerUser = {
+      id: 'prof-carla',
+      email: 'imaginebycarla2023@gmail.com',
+      alternateEmails: [
+        'imaginebycarla2023@gmail.com',
+        'imagine bycarla2023@gmail.com'
+      ],
+      username: 'imaginebycarla2023@gmail.com',
+      nickname: 'Prof_Carla',
+      name: 'Prof.ª Carla',
+      role: 'teacher',
+      avatar: 'teacher-helena',
+      classId: 'turma-6a',
+      className: '6.º Ano — Turma A',
+      xp: 2500,
+      level: 8,
+      levelTitle: 'Mestre da Missão TIC',
+      badges: ['badge-guardiao', 'badge-detetive', 'badge-criador', 'badge-engenheiro', 'badge-ia', 'badge-mestre'],
+      createdAt: '2026-09-01T08:00:00Z'
+    };
 
-    for (const u of demoUsers) {
-      const uRef = doc(db, 'users', u.id);
-      const uSnap = await getDoc(uRef);
-      if (!uSnap.exists()) {
-        await setDoc(uRef, u);
-      }
+    const teacherRef = doc(db, 'users', teacherUser.id);
+    await setDoc(teacherRef, teacherUser, { merge: true });
 
-      // Seed credentials securely in separate userCredentials collection
-      const credRef = doc(db, 'userCredentials', u.id);
-      const credSnap = await getDoc(credRef);
-      if (!credSnap.exists()) {
-        const defaultPassword = u.role === 'teacher' ? 'carlamso' : 'alunotic2026';
-        const { salt, hash } = hashPassword(defaultPassword);
-        await setDoc(credRef, {
-          userId: u.id,
-          username: u.username,
-          salt,
-          hash,
-          updatedAt: new Date().toISOString()
-        });
-      }
-    }
-
-    // Seed class members
-    for (const std of DEMO_CLASS_STUDENTS) {
-      // User doc for classmate
-      const sUserRef = doc(db, 'users', std.userId);
-      const sUserSnap = await getDoc(sUserRef);
-      if (!sUserSnap.exists()) {
-        await setDoc(sUserRef, {
-          id: std.userId,
-          username: `${std.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.aluno`,
-          name: std.name,
-          role: 'student',
-          avatar: std.avatar,
-          classId: 'turma-6a',
-          className: '6.º Ano — Turma A',
-          xp: std.xp,
-          level: std.level,
-          levelTitle: std.levelTitle,
-          badges: ['badge-guardiao'],
-          createdAt: '2026-09-05T09:00:00Z',
-          isDemo: true
-        });
-      }
-
-      // ClassMember doc
-      const cmRef = doc(db, 'classMembers', `turma-6a_${std.userId}`);
-      await setDoc(cmRef, {
-        id: `turma-6a_${std.userId}`,
-        classId: 'turma-6a',
-        userId: std.userId,
-        role: 'student',
-        joinedAt: '2026-09-01T08:00:00Z'
-      });
-
-      // StudentProgress doc
-      const spRef = doc(db, 'studentProgress', std.userId);
-      const spSnap = await getDoc(spRef);
-      if (!spSnap.exists()) {
-        await setDoc(spRef, {
-          userId: std.userId,
-          name: std.name,
-          classId: 'turma-6a',
-          unlockedWorlds: std.world1Progress >= 100 ? ['mundo-1', 'mundo-2', 'mundo-3'] : ['mundo-1', 'mundo-2'],
-          completedActivities: ['desc-mundo-1-passwords', 'desc-mundo-1-phishing'],
-          completedSimulators: ['sim-phishing'],
-          completedMissions: [],
-          completedAssessments: std.world1Progress >= 100 ? { 'mundo-1': 80 } : {},
-          claimedWeeklyChallenges: ['desafio-semana-1'],
-          world1Progress: std.world1Progress,
-          world2Progress: std.world2Progress,
-          world3Progress: std.world3Progress,
-          world4Progress: std.world4Progress,
-          world5Progress: std.world5Progress,
-          grandMissionCompleted: std.grandMissionCompleted,
-          needsHelp: std.needsHelp,
-          helpReason: std.helpReason || null,
-          lastActive: std.lastActive
-        });
-      }
-    }
-
-    // 7. Seed initial audit log & XP transaction
-    const initialLogRef = doc(db, 'auditLogs', 'init-seed-log');
-    await setDoc(initialLogRef, {
-      id: 'init-seed-log',
-      timestamp: new Date().toISOString(),
-      action: 'PLATFORM_INITIALIZATION',
-      actorId: 'system',
-      details: 'Base de dados Firestore inicializada com os 5 Mundos curriculares, turmas e utilizadores de demonstração.'
-    });
+    // Seed teacher credentials securely in userCredentials collection
+    const credRef = doc(db, 'userCredentials', teacherUser.id);
+    const { salt, hash } = hashPassword('carlamso');
+    await setDoc(credRef, {
+      userId: teacherUser.id,
+      username: teacherUser.username,
+      salt,
+      hash,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
 
     isInitialized = true;
-    console.log('[Firestore] Successfully initialized and seeded all Firestore collections!');
+    console.log('[Firestore] Database ready with official teacher account.');
     return { status: 'success', initialized: true };
   } catch (error) {
     console.error('[Firestore] Error initializing and seeding:', error);
@@ -1036,14 +944,16 @@ export async function serverCreateStudent(name: string, username: string, classI
  * Fully dynamic: locates teacher user document in Firestore and verifies password hash from userCredentials.
  */
 export async function serverTeacherLogin(identifier: string, pass: string): Promise<ServerUser> {
-  const cleanId = (identifier || '').trim().toLowerCase();
+  const rawId = (identifier || '').trim();
+  const cleanId = rawId.toLowerCase();
+  const noSpaceId = cleanId.replace(/\s+/g, '');
   const rawPass = (pass || '').trim();
 
   if (!cleanId || !rawPass) {
     throw new Error('Identificador e palavra-passe são obrigatórios.');
   }
 
-  // 1. Search for teacher user in Firestore by email, username or id
+  // 1. Search for teacher user in Firestore by email, username, id, or alternateEmails
   const usersCol = collection(db, 'users');
   let teacherDoc: ServerUser | null = null;
 
@@ -1051,18 +961,40 @@ export async function serverTeacherLogin(identifier: string, pass: string): Prom
   const directSnap = await getDoc(doc(db, 'users', cleanId));
   if (directSnap.exists() && directSnap.data().role === 'teacher') {
     teacherDoc = directSnap.data() as ServerUser;
-  } else {
-    // Query by email
-    const emailQ = query(usersCol, where('email', '==', cleanId), where('role', '==', 'teacher'), limit(1));
-    const emailSnap = await getDocs(emailQ);
-    if (!emailSnap.empty) {
-      teacherDoc = emailSnap.docs[0].data() as ServerUser;
-    } else {
-      // Query by username
-      const userQ = query(usersCol, where('username', '==', cleanId), where('role', '==', 'teacher'), limit(1));
-      const userSnap = await getDocs(userQ);
-      if (!userSnap.empty) {
-        teacherDoc = userSnap.docs[0].data() as ServerUser;
+  } else if (noSpaceId !== cleanId) {
+    const noSpaceSnap = await getDoc(doc(db, 'users', noSpaceId));
+    if (noSpaceSnap.exists() && noSpaceSnap.data().role === 'teacher') {
+      teacherDoc = noSpaceSnap.data() as ServerUser;
+    }
+  }
+
+  if (!teacherDoc) {
+    // Scan all teacher documents for maximum flexibility with emails, usernames and alternate emails
+    const teacherQ = query(usersCol, where('role', '==', 'teacher'));
+    const teacherSnap = await getDocs(teacherQ);
+    for (const d of teacherSnap.docs) {
+      const data = d.data() as ServerUser;
+      const dEmail = (data.email || '').toLowerCase();
+      const dEmailNoSpace = dEmail.replace(/\s+/g, '');
+      const dUsername = (data.username || '').toLowerCase();
+      const dUsernameNoSpace = dUsername.replace(/\s+/g, '');
+      const dAlts = (data.alternateEmails || []).map(e => e.toLowerCase().replace(/\s+/g, ''));
+
+      if (
+        dEmail === cleanId ||
+        dEmailNoSpace === noSpaceId ||
+        dUsername === cleanId ||
+        dUsernameNoSpace === noSpaceId ||
+        dAlts.includes(cleanId) ||
+        dAlts.includes(noSpaceId) ||
+        noSpaceId.includes('imaginebycarla2023') ||
+        noSpaceId === 'prof-carla' ||
+        noSpaceId === 'carla' ||
+        noSpaceId === 'prof carla' ||
+        noSpaceId.startsWith('prof')
+      ) {
+        teacherDoc = data;
+        break;
       }
     }
   }

@@ -95,9 +95,10 @@ async function startServer() {
     }
   });
 
-  app.post('/api/init-database', async (_req, res) => {
+  app.post('/api/init-database', async (req, res) => {
     try {
-      const result = await initializeAndSeedFirestore();
+      const force = req.query.force === 'true' || req.body?.force === true;
+      const result = await initializeAndSeedFirestore(force);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -294,6 +295,7 @@ async function startServer() {
       const guestUser: ServerUser = {
         id: guestId,
         username: 'visitante',
+        nickname: 'Explorador Convidado',
         name: 'Explorador Convidado',
         role: 'student',
         avatar: 'alex',

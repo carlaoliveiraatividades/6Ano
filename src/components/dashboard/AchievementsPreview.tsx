@@ -8,11 +8,11 @@ export const AchievementsPreview: React.FC = () => {
   const { user } = useAuth();
 
   const badges = [
-    { id: 'badge-guardiao', name: 'Guardião Digital', icon: Shield, unlocked: user?.badges.includes('badge-guardiao') ?? true },
-    { id: 'badge-detetive', name: 'Detetive Digital', icon: Search, unlocked: user?.badges.includes('badge-detetive') ?? false },
-    { id: 'badge-criador', name: 'Criador Digital', icon: PenTool, unlocked: user?.badges.includes('badge-criador') ?? false },
-    { id: 'badge-engenheiro', name: 'Engenheiro Digital', icon: Cpu, unlocked: user?.badges.includes('badge-engenheiro') ?? false },
-    { id: 'badge-ia', name: 'Explorador da IA', icon: Sparkles, unlocked: user?.badges.includes('badge-ia') ?? false }
+    { id: 'badge-guardiao', name: 'Guardião Digital', icon: Shield, unlocked: user?.badges?.includes('badge-guardiao') ?? true },
+    { id: 'badge-detetive', name: 'Detetive Digital', icon: Search, unlocked: user?.badges?.includes('badge-detetive') ?? false },
+    { id: 'badge-criador', name: 'Criador Digital', icon: PenTool, unlocked: user?.badges?.includes('badge-criador') ?? false },
+    { id: 'badge-engenheiro', name: 'Engenheiro Digital', icon: Cpu, unlocked: user?.badges?.includes('badge-engenheiro') ?? false },
+    { id: 'badge-ia', name: 'Explorador da IA', icon: Sparkles, unlocked: user?.badges?.includes('badge-ia') ?? false }
   ];
 
   return (

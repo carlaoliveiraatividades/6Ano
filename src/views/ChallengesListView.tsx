@@ -26,7 +26,7 @@ export const ChallengesListView: React.FC = () => {
       {/* Challenges Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {WEEKLY_CHALLENGES.map((ch) => {
-          const isDone = user?.claimedWeeklyChallenges.includes(ch.id);
+          const isDone = Boolean(user?.claimedWeeklyChallenges?.includes(ch.id));
 
           return (
             <div
